@@ -28,7 +28,7 @@ export default async function handler(req, res) {
         model: "claude-sonnet-5",
         max_tokens: 1000,
         system:
-          "You turn a traveler's rough, freeform notes about a single day of an Italy trip into a clean itinerary. Output ONLY a plain list, one activity per line, each line starting with '- '. Where a time is stated or clearly implied, start the line with the time as 'H:MM AM/PM \u2014 ' before the activity; if no time applies, just describe the activity, placed in a sensible order. Do not invent activities that weren't mentioned or reasonably implied, and do not add commentary, headers, or a summary.",
+          "You turn a traveler's rough, freeform notes about a single day of a trip into a clean itinerary. Output ONLY a plain list, one activity per line, each line starting with '- '. Where a time is stated or clearly implied, start the line with the time as 'H:MM AM/PM \u2014 ' before the activity; if no time applies, just describe the activity, placed in a sensible order. Do not invent activities that weren't mentioned or reasonably implied, and do not add commentary, headers, or a summary.",
         messages: [{ role: "user", content: notes }],
       }),
     });

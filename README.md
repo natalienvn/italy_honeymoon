@@ -1,8 +1,9 @@
-# Rome · Tuscany · Florence — Trip Planner
+# My Trips — Travel Planner
 
-A fully editable trip planner: flights, a day-by-day itinerary, region-grouped
-notes, and trackers for hotels, restaurants, and experiences. Everything you
-type is saved to your browser automatically (see **Saving** below).
+A home page listing every trip you're planning, and inside each trip: flights,
+a day-by-day itinerary, notes grouped by destination, and trackers for
+hotels, restaurants, and experiences. Add as many trips as you want — Italy
+comes pre-loaded with what was already planned there.
 
 ## Local development
 
@@ -12,9 +13,9 @@ npm run dev
 ```
 
 This starts the site at `http://localhost:5173`. Everything works locally
-**except** the "Organize" button on the Itinerary tab, which calls a
-serverless function (`/api/organize`) that only runs on Vercel — see below
-if you want to test it locally too.
+**except** the "Organize" button (Itinerary tab) and the "Import" tab, since
+both call serverless functions that only run on Vercel — see below if you
+want to test those locally too.
 
 ## Deploy to Vercel
 
@@ -27,12 +28,11 @@ if you want to test it locally too.
      [console.anthropic.com](https://console.anthropic.com)
 4. Deploy. Your site will be live at `your-project.vercel.app`.
 
-The "Organize" button (which turns your rough day notes into a clean
-itinerary) calls `/api/organize`, a Vercel serverless function in this repo
-that uses your API key server-side. Your key is never exposed to the
-browser.
+If you add or change the environment variable *after* deploying once, you
+need to trigger a new deploy (e.g. push another commit) for it to take
+effect — Vercel doesn't pick up env var changes on already-built deployments.
 
-### Testing "Organize" locally
+### Testing "Organize" / "Import" locally
 
 The `/api` folder only runs on Vercel's servers, not with `npm run dev`. To
 test it locally too:
@@ -45,17 +45,54 @@ vercel dev
 and add your key to a local `.env` file first (copy `.env.example` to `.env`
 and fill it in).
 
+## Destinations
+
+Each trip has its own list of destinations (e.g. Rome, Tuscany, Florence for
+the Italy trip) — add, rename, or remove them from the pill row near the top
+of a trip. Notes, bookings, and days can all be tagged to a destination, plus
+two built-in groups that are always there: **General** (trip-wide notes not
+tied to one place) and **Travel** (for transit days, like a flight day).
+
+## Importing existing bookings
+
+The **Import** tab (inside a trip) lets you paste text or upload a file, and
+Claude pulls out flights, hotels, restaurants, and experiences into a review
+list — nothing gets added until you check it over and click "Add." It
+automatically matches destinations to whatever you've set up for that
+specific trip.
+
+Supported file types: **PDF, Word (.docx), images (PNG/JPG), and plain text
+(.txt/.md)**. Anything else (Excel, Pages, Numbers, email export files, etc.)
+isn't supported directly — copy the relevant text out and paste it into the
+text box instead, which works for basically anything you can select and copy.
+
 ## Saving
 
-Your trip data (flights, days, notes, bookings) is saved to your browser's
-`localStorage` — no account or database needed. It's saved automatically
-about half a second after you stop typing, **and** it force-saves the moment
-you close the tab, refresh, or switch away, so nothing you've typed is ever
-lost. It's stored per-browser, on the device you're using — it won't
-follow you to a different browser or computer, and clearing your browser
-data will clear it too.
+Everything (all your trips) is saved to your browser's `localStorage` — no
+account or database needed. It saves automatically about half a second after
+you stop typing, **and** it force-saves the moment you close the tab,
+refresh, or switch away, so nothing you've typed is ever lost in a normal
+browser session.
+
+**Important caveat:** this only works if your browser actually keeps
+`localStorage` around. If you're in a private/incognito window, or your
+browser is set to clear cookies and site data on close (common in Safari,
+Brave, and privacy-hardened Chrome/Firefox setups), everything gets wiped the
+moment you close the window — no code can prevent that, since the browser
+itself is deleting the storage.
+
+To protect against that, there are **Export backup** / **Import backup**
+buttons at the top of the app (works from the home page or inside a trip —
+it backs up everything, all trips at once). If the app ever shows a red
+"changes aren't saving" banner, export a backup right away.
+
+It's also worth knowing storage is per-browser, per-device — it won't follow
+you to a different browser or computer. Use Export if you want to move your
+data somewhere else, or just to be safe.
 
 ## Stack
 
-Vite + React + Tailwind CSS + lucide-react icons, with one Vercel serverless
-function for the "Organize" feature.
+Vite + React + Tailwind CSS + lucide-react icons, with two Vercel serverless
+functions: `/api/organize` (turns a day's rough notes into a clean
+itinerary) and `/api/import` (pulls structured bookings out of pasted text
+or an uploaded document).
