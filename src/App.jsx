@@ -3,7 +3,7 @@ import {
   Plane, Plus, Trash2, ChevronUp, ChevronDown, MapPin,
   FolderPlus, Check, Sparkles, Loader2, Pencil, FileText,
   BedDouble, UtensilsCrossed, Ticket, Download, Upload, AlertTriangle, FileUp, X,
-  ArrowLeft
+  ArrowLeft, Tag, Bookmark
 } from "lucide-react";
 
 // ---------- constants & small factories ----------
@@ -43,6 +43,8 @@ function makeTrip(name, dates) {
     days: [],
     sections: [],
     bookings: { hotels: [], restaurants: [], experiences: [] },
+    customTabs: [],
+    bookingCategories: [],
   };
 }
 
@@ -106,6 +108,8 @@ function makeItalyTrip() {
       list("Things to buy", "florence", []),
     ],
     bookings: { hotels: [], restaurants: [], experiences: [] },
+    customTabs: [],
+    bookingCategories: [],
   };
 }
 
@@ -117,6 +121,7 @@ const LEGACY_STORAGE_KEY = "italy-trip-planner-v1";
 function migrateTripShape(t) {
   const legs = Array.isArray(t.legs) ? t.legs : [];
   const validIds = [...legs.map((l) => l.id), "general"];
+  const fixSections = (secs) => (secs || []).map((s) => ({ ...s, region: validIds.includes(s.region) ? s.region : "general" }));
   return {
     id: t.id || uid(),
     name: t.name || "Untitled trip",
@@ -124,12 +129,22 @@ function migrateTripShape(t) {
     legs,
     flights: { ...defaultFlights(), ...(t.flights || {}) },
     days: (t.days || []).map((d) => ({ notes: "", organized: null, ...d })),
-    sections: (t.sections || []).map((s) => ({ ...s, region: validIds.includes(s.region) ? s.region : "general" })),
+    sections: fixSections(t.sections),
     bookings: {
       hotels: (t.bookings && t.bookings.hotels) || [],
       restaurants: (t.bookings && t.bookings.restaurants) || [],
       experiences: (t.bookings && t.bookings.experiences) || [],
     },
+    customTabs: (t.customTabs || []).map((ct) => ({
+      id: ct.id || uid(),
+      name: ct.name || "New tab",
+      sections: fixSections(ct.sections),
+    })),
+    bookingCategories: (t.bookingCategories || []).map((bc) => ({
+      id: bc.id || uid(),
+      name: bc.name || "New category",
+      entries: bc.entries || [],
+    })),
   };
 }
 
@@ -414,6 +429,101 @@ function BookingsPanel({ category, itemNoun, whenLabel, confirmLabel, entries, n
   );
 }
 
+// ---------- a group of lists, grouped by destination (used by Notes and by any custom tab) ----------
+
+function NotesLikePanel({ sections, noteGroups, isSectionOpen, toggleSection, onAddSection, onUpdateTitle, onUpdateRegion, onDeleteSection, onAddItem, onUpdateItem, onToggleItem, onDeleteItem }) {
+  const PAPER = "#F3ECDD", PAPER_TEXT = "#2B2118", BRASS = "#C99A44", PAPER_MUTED = "#9FA8B3";
+  return (
+    <>
+      {noteGroups.map((group) => {
+        const groupSections = sections.filter((s) => (s.region || "general") === group.id);
+        return (
+          <div key={group.id} className="mb-9" style={{ borderTop: `1px solid ${group.color}33`, paddingTop: 18 }}>
+            <GroupBadge group={group} />
+
+            {groupSections.length > 0 && (
+              <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+                {groupSections.map((section) => {
+                  const doneCount = section.items.filter((i) => i.checked).length;
+                  const open = isSectionOpen(section.id);
+                  return (
+                    <div key={section.id} style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 12, borderLeft: `4px solid ${group.color}`, padding: open ? "14px 14px 10px" : "12px 14px" }}>
+                      <div className="flex items-center gap-2" style={{ marginBottom: open ? 8 : 0 }}>
+                        <button
+                          onClick={() => toggleSection(section.id)}
+                          title={open ? "Collapse list" : "Expand list"}
+                          aria-label={open ? "Collapse list" : "Expand list"}
+                          className="shrink-0 flex items-center justify-center"
+                          style={{ width: 20, height: 20 }}
+                        >
+                          {open ? <ChevronUp size={14} color="#8A7B5C" /> : <ChevronDown size={14} color="#8A7B5C" />}
+                        </button>
+                        <Field value={section.title} onChange={(v) => onUpdateTitle(section.id, v)} className="fx-fraunces" style={{ fontSize: 15, fontWeight: 600, fontStyle: "italic" }} />
+                        <div className="flex items-center gap-1 shrink-0">
+                          {section.items.length > 0 && (
+                            <span style={{ fontSize: 10, color: "#8A7B5C", fontFamily: "'IBM Plex Mono', monospace" }}>{doneCount}/{section.items.length}</span>
+                          )}
+                          <button onClick={() => onDeleteSection(section.id)} title="Delete list" aria-label="Delete list" style={{ opacity: 0.35 }}>
+                            <Trash2 size={13} color="#B5533C" />
+                          </button>
+                        </div>
+                      </div>
+                      {open && (
+                        <>
+                          <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                            <span style={{ fontSize: 9.5, color: "#8A7B5C", marginRight: 2 }}>Move to:</span>
+                            {noteGroups.map((g) => {
+                              const active = (section.region || "general") === g.id;
+                              return (
+                                <button
+                                  key={g.id}
+                                  onClick={() => onUpdateRegion(section.id, g.id)}
+                                  disabled={active}
+                                  style={{
+                                    fontSize: 10, padding: "2px 9px", borderRadius: 999, fontWeight: 500,
+                                    border: `1px solid ${active ? g.color : "#8A7B5C44"}`,
+                                    background: active ? g.color : "transparent",
+                                    color: active ? "#F3ECDD" : "#8A7B5C",
+                                    cursor: active ? "default" : "pointer",
+                                  }}
+                                >
+                                  {g.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            {section.items.map((item) => (
+                              <div key={item.id} className="fx-row flex items-start gap-2">
+                                <Stamp checked={item.checked} onClick={() => onToggleItem(section.id, item.id)} color={BRASS} />
+                                <AutoNote value={item.text} onChange={(v) => onUpdateItem(section.id, item.id, v)} placeholder="Add a note" className="flex-1 text-sm" style={{ color: PAPER_TEXT, textDecoration: item.checked ? "line-through" : "none", opacity: item.checked ? 0.55 : 1, paddingTop: 1 }} />
+                                <button onClick={() => onDeleteItem(section.id, item.id)} className="fx-actions" title="Delete item" aria-label="Delete item" style={{ marginTop: 2 }}>
+                                  <Trash2 size={12} color="#B5533C" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <button onClick={() => onAddItem(section.id)} className="flex items-center gap-1.5 mt-2 opacity-50 hover:opacity-90 transition-opacity" style={{ fontSize: 11.5, color: "#8A7B5C" }}>
+                            <Plus size={12} /> Add item
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <button onClick={() => onAddSection(group.id)} className="flex items-center gap-2 opacity-55 hover:opacity-100 transition-opacity" style={{ fontSize: 12, color: "#F3ECDD", border: `1px dashed ${PAPER_MUTED}55`, borderRadius: 8, padding: "7px 12px" }}>
+              <FolderPlus size={13} /> Add a list to {group.label}
+            </button>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 // ---------- import (paste/upload -> parse -> review -> add) ----------
 
 function ImportPanel({ legs, noteGroups, onApply }) {
@@ -651,6 +761,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
   const [ui, setUi] = useState({});
   const [sectionOpen, setSectionOpen] = useState({});
   const [tab, setTab] = useState("itinerary");
+  const [showAddTabMenu, setShowAddTabMenu] = useState(false);
 
   const dayRegions = [...trip.legs, TRAVEL_LEG];
   const noteGroups = [GENERAL_LEG, ...trip.legs];
@@ -681,6 +792,14 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
         restaurants: t.bookings.restaurants.map((b) => (b.region === id ? { ...b, region: "general" } : b)),
         experiences: t.bookings.experiences.map((b) => (b.region === id ? { ...b, region: "general" } : b)),
       },
+      customTabs: (t.customTabs || []).map((ct) => ({
+        ...ct,
+        sections: ct.sections.map((s) => (s.region === id ? { ...s, region: "general" } : s)),
+      })),
+      bookingCategories: (t.bookingCategories || []).map((bc) => ({
+        ...bc,
+        entries: bc.entries.map((b) => (b.region === id ? { ...b, region: "general" } : b)),
+      })),
     }));
   };
 
@@ -698,44 +817,77 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
       return { ...t, days: arr };
     });
 
-  const addSection = (region) => updateTrip((t) => ({ ...t, sections: [...t.sections, list("New list", region || "general", [])] }));
-  const updateSectionTitle = (id, val) =>
-    updateTrip((t) => ({ ...t, sections: t.sections.map((s) => (s.id === id ? { ...s, title: val } : s)) }));
-  const updateSectionRegion = (id, region) =>
-    updateTrip((t) => ({ ...t, sections: t.sections.map((s) => (s.id === id ? { ...s, region } : s)) }));
-  const deleteSection = (id) => updateTrip((t) => ({ ...t, sections: t.sections.filter((s) => s.id !== id) }));
+  const getScopedSections = (t, scope) =>
+    scope === "notes" ? t.sections : ((t.customTabs || []).find((ct) => ct.id === scope) || {}).sections || [];
+  const setScopedSections = (t, scope, updater) =>
+    scope === "notes"
+      ? { ...t, sections: updater(t.sections) }
+      : { ...t, customTabs: (t.customTabs || []).map((ct) => (ct.id === scope ? { ...ct, sections: updater(ct.sections) } : ct)) };
 
-  const addItem = (sectionId) =>
-    updateTrip((t) => ({ ...t, sections: t.sections.map((s) => (s.id === sectionId ? { ...s, items: [...s.items, it("")] } : s)) }));
-  const updateItem = (sectionId, itemId, val) =>
-    updateTrip((t) => ({
-      ...t,
-      sections: t.sections.map((s) =>
-        s.id === sectionId ? { ...s, items: s.items.map((i) => (i.id === itemId ? { ...i, text: val } : i)) } : s
-      ),
-    }));
-  const toggleItem = (sectionId, itemId) =>
-    updateTrip((t) => ({
-      ...t,
-      sections: t.sections.map((s) =>
-        s.id === sectionId ? { ...s, items: s.items.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i)) } : s
-      ),
-    }));
-  const deleteItem = (sectionId, itemId) =>
-    updateTrip((t) => ({
-      ...t,
-      sections: t.sections.map((s) => (s.id === sectionId ? { ...s, items: s.items.filter((i) => i.id !== itemId) } : s)),
-    }));
+  const addSection = (scope, region) => updateTrip((t) => setScopedSections(t, scope, (secs) => [...secs, list("New list", region || "general", [])]));
+  const updateSectionTitle = (scope, id, val) =>
+    updateTrip((t) => setScopedSections(t, scope, (secs) => secs.map((s) => (s.id === id ? { ...s, title: val } : s))));
+  const updateSectionRegion = (scope, id, region) =>
+    updateTrip((t) => setScopedSections(t, scope, (secs) => secs.map((s) => (s.id === id ? { ...s, region } : s))));
+  const deleteSection = (scope, id) => updateTrip((t) => setScopedSections(t, scope, (secs) => secs.filter((s) => s.id !== id)));
 
-  const addBooking = (category, region) =>
-    updateTrip((t) => ({ ...t, bookings: { ...t.bookings, [category]: [...t.bookings[category], booking(region)] } }));
-  const updateBooking = (category, id, field, val) =>
-    updateTrip((t) => ({
-      ...t,
-      bookings: { ...t.bookings, [category]: t.bookings[category].map((b) => (b.id === id ? { ...b, [field]: val } : b)) },
-    }));
-  const deleteBooking = (category, id) =>
-    updateTrip((t) => ({ ...t, bookings: { ...t.bookings, [category]: t.bookings[category].filter((b) => b.id !== id) } }));
+  const addItem = (scope, sectionId) =>
+    updateTrip((t) => setScopedSections(t, scope, (secs) => secs.map((s) => (s.id === sectionId ? { ...s, items: [...s.items, it("")] } : s))));
+  const updateItem = (scope, sectionId, itemId, val) =>
+    updateTrip((t) =>
+      setScopedSections(t, scope, (secs) =>
+        secs.map((s) => (s.id === sectionId ? { ...s, items: s.items.map((i) => (i.id === itemId ? { ...i, text: val } : i)) } : s))
+      )
+    );
+  const toggleItem = (scope, sectionId, itemId) =>
+    updateTrip((t) =>
+      setScopedSections(t, scope, (secs) =>
+        secs.map((s) => (s.id === sectionId ? { ...s, items: s.items.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i)) } : s))
+      )
+    );
+  const deleteItem = (scope, sectionId, itemId) =>
+    updateTrip((t) =>
+      setScopedSections(t, scope, (secs) => secs.map((s) => (s.id === sectionId ? { ...s, items: s.items.filter((i) => i.id !== itemId) } : s)))
+    );
+
+  const addCustomTab = () => {
+    const newId = uid();
+    updateTrip((t) => ({ ...t, customTabs: [...(t.customTabs || []), { id: newId, name: "New tab", sections: [] }] }));
+    setTab(`custom:${newId}`);
+  };
+  const updateCustomTabName = (id, name) =>
+    updateTrip((t) => ({ ...t, customTabs: (t.customTabs || []).map((ct) => (ct.id === id ? { ...ct, name } : ct)) }));
+  const deleteCustomTab = (id) => {
+    if (!window.confirm("Delete this tab and everything in it? This can't be undone.")) return;
+    updateTrip((t) => ({ ...t, customTabs: (t.customTabs || []).filter((ct) => ct.id !== id) }));
+    if (tab === `custom:${id}`) setTab("itinerary");
+  };
+
+  const FIXED_BOOKING_CATEGORIES = ["hotels", "restaurants", "experiences"];
+  const getScopedBookings = (t, scope) =>
+    FIXED_BOOKING_CATEGORIES.includes(scope) ? t.bookings[scope] : (((t.bookingCategories || []).find((bc) => bc.id === scope) || {}).entries || []);
+  const setScopedBookings = (t, scope, updater) =>
+    FIXED_BOOKING_CATEGORIES.includes(scope)
+      ? { ...t, bookings: { ...t.bookings, [scope]: updater(t.bookings[scope]) } }
+      : { ...t, bookingCategories: (t.bookingCategories || []).map((bc) => (bc.id === scope ? { ...bc, entries: updater(bc.entries) } : bc)) };
+
+  const addBooking = (scope, region) => updateTrip((t) => setScopedBookings(t, scope, (entries) => [...entries, booking(region)]));
+  const updateBooking = (scope, id, field, val) =>
+    updateTrip((t) => setScopedBookings(t, scope, (entries) => entries.map((b) => (b.id === id ? { ...b, [field]: val } : b))));
+  const deleteBooking = (scope, id) => updateTrip((t) => setScopedBookings(t, scope, (entries) => entries.filter((b) => b.id !== id)));
+
+  const addBookingCategory = () => {
+    const newId = uid();
+    updateTrip((t) => ({ ...t, bookingCategories: [...(t.bookingCategories || []), { id: newId, name: "New category", entries: [] }] }));
+    setTab(`booking:${newId}`);
+  };
+  const updateBookingCategoryName = (id, name) =>
+    updateTrip((t) => ({ ...t, bookingCategories: (t.bookingCategories || []).map((bc) => (bc.id === id ? { ...bc, name } : bc)) }));
+  const deleteBookingCategory = (id) => {
+    if (!window.confirm("Delete this category and everything in it? This can't be undone.")) return;
+    updateTrip((t) => ({ ...t, bookingCategories: (t.bookingCategories || []).filter((bc) => bc.id !== id) }));
+    if (tab === `booking:${id}`) setTab("itinerary");
+  };
 
   const applyImportResults = (result, selections) => {
     if (!result) return;
@@ -884,6 +1036,85 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
             </button>
           );
         })}
+        {(trip.customTabs || []).map((ct) => {
+          const active = tab === `custom:${ct.id}`;
+          return (
+            <button
+              key={ct.id}
+              onClick={() => setTab(`custom:${ct.id}`)}
+              className="flex items-center gap-1.5 transition-opacity"
+              style={{
+                fontSize: 12.5, fontWeight: 500, padding: "7px 13px", borderRadius: 8,
+                background: active ? BRASS : "transparent",
+                color: active ? INK : PAPER,
+                opacity: active ? 1 : 0.65,
+              }}
+            >
+              <Tag size={14} /> {ct.name || "New tab"}
+            </button>
+          );
+        })}
+        {(trip.bookingCategories || []).map((bc) => {
+          const active = tab === `booking:${bc.id}`;
+          return (
+            <button
+              key={bc.id}
+              onClick={() => setTab(`booking:${bc.id}`)}
+              className="flex items-center gap-1.5 transition-opacity"
+              style={{
+                fontSize: 12.5, fontWeight: 500, padding: "7px 13px", borderRadius: 8,
+                background: active ? BRASS : "transparent",
+                color: active ? INK : PAPER,
+                opacity: active ? 1 : 0.65,
+              }}
+            >
+              <Bookmark size={14} /> {bc.name || "New category"}
+            </button>
+          );
+        })}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowAddTabMenu((v) => !v)}
+            title="Add a new tab"
+            aria-label="Add a new tab"
+            className="flex items-center justify-center opacity-55 hover:opacity-100 transition-opacity"
+            style={{ width: 30, height: 30, borderRadius: 8, border: `1px dashed ${MUTED}66`, color: PAPER }}
+          >
+            <Plus size={14} />
+          </button>
+          {showAddTabMenu && (
+            <div
+              className="flex flex-col"
+              style={{
+                position: "absolute", top: "115%", left: 0, background: PAPER, borderRadius: 8,
+                padding: 4, zIndex: 20, boxShadow: "0 6px 20px rgba(0,0,0,0.35)", minWidth: 240,
+              }}
+            >
+              <button
+                onClick={() => {
+                  addCustomTab();
+                  setShowAddTabMenu(false);
+                }}
+                className="text-left"
+                style={{ fontSize: 12.5, color: PAPER_TEXT, padding: "8px 10px", borderRadius: 6 }}
+              >
+                <div style={{ fontWeight: 600 }}>List / checklist tab</div>
+                <div style={{ fontSize: 11, color: "#8A7B5C" }}>Like Notes &mdash; freeform lists, grouped by destination</div>
+              </button>
+              <button
+                onClick={() => {
+                  addBookingCategory();
+                  setShowAddTabMenu(false);
+                }}
+                className="text-left"
+                style={{ fontSize: 12.5, color: PAPER_TEXT, padding: "8px 10px", borderRadius: 6 }}
+              >
+                <div style={{ fontWeight: 600 }}>Booking tab</div>
+                <div style={{ fontSize: 11, color: "#8A7B5C" }}>Like Hotels &mdash; name, dates, confirmation #, notes</div>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {tab === "itinerary" && (
@@ -1023,94 +1254,90 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
       )}
 
       {tab === "notes" && (
-        <>
-          {noteGroups.map((group) => {
-            const groupSections = trip.sections.filter((s) => (s.region || "general") === group.id);
-            return (
-              <div key={group.id} className="mb-9" style={{ borderTop: `1px solid ${group.color}33`, paddingTop: 18 }}>
-                <GroupBadge group={group} />
-
-                {groupSections.length > 0 && (
-                  <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-                    {groupSections.map((section) => {
-                      const doneCount = section.items.filter((i) => i.checked).length;
-                      const open = isSectionOpen(section.id);
-                      return (
-                        <div key={section.id} style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 12, borderLeft: `4px solid ${group.color}`, padding: open ? "14px 14px 10px" : "12px 14px" }}>
-                          <div className="flex items-center gap-2" style={{ marginBottom: open ? 8 : 0 }}>
-                            <button
-                              onClick={() => toggleSection(section.id)}
-                              title={open ? "Collapse list" : "Expand list"}
-                              aria-label={open ? "Collapse list" : "Expand list"}
-                              className="shrink-0 flex items-center justify-center"
-                              style={{ width: 20, height: 20 }}
-                            >
-                              {open ? <ChevronUp size={14} color="#8A7B5C" /> : <ChevronDown size={14} color="#8A7B5C" />}
-                            </button>
-                            <Field value={section.title} onChange={(v) => updateSectionTitle(section.id, v)} className="fx-fraunces" style={{ fontSize: 15, fontWeight: 600, fontStyle: "italic" }} />
-                            <div className="flex items-center gap-1 shrink-0">
-                              {section.items.length > 0 && (
-                                <span style={{ fontSize: 10, color: "#8A7B5C", fontFamily: "'IBM Plex Mono', monospace" }}>{doneCount}/{section.items.length}</span>
-                              )}
-                              <button onClick={() => deleteSection(section.id)} title="Delete list" aria-label="Delete list" style={{ opacity: 0.35 }}>
-                                <Trash2 size={13} color="#B5533C" />
-                              </button>
-                            </div>
-                          </div>
-                          {open && (
-                            <>
-                              <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-                                <span style={{ fontSize: 9.5, color: "#8A7B5C", marginRight: 2 }}>Move to:</span>
-                                {noteGroups.map((g) => {
-                                  const active = (section.region || "general") === g.id;
-                                  return (
-                                    <button
-                                      key={g.id}
-                                      onClick={() => updateSectionRegion(section.id, g.id)}
-                                      disabled={active}
-                                      style={{
-                                        fontSize: 10, padding: "2px 9px", borderRadius: 999, fontWeight: 500,
-                                        border: `1px solid ${active ? g.color : "#8A7B5C44"}`,
-                                        background: active ? g.color : "transparent",
-                                        color: active ? "#F3ECDD" : "#8A7B5C",
-                                        cursor: active ? "default" : "pointer",
-                                      }}
-                                    >
-                                      {g.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                              <div className="flex flex-col gap-1.5">
-                                {section.items.map((item) => (
-                                  <div key={item.id} className="fx-row flex items-start gap-2">
-                                    <Stamp checked={item.checked} onClick={() => toggleItem(section.id, item.id)} color={BRASS} />
-                                    <AutoNote value={item.text} onChange={(v) => updateItem(section.id, item.id, v)} placeholder="Add a note" className="flex-1 text-sm" style={{ color: PAPER_TEXT, textDecoration: item.checked ? "line-through" : "none", opacity: item.checked ? 0.55 : 1, paddingTop: 1 }} />
-                                    <button onClick={() => deleteItem(section.id, item.id)} className="fx-actions" title="Delete item" aria-label="Delete item" style={{ marginTop: 2 }}>
-                                      <Trash2 size={12} color="#B5533C" />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                              <button onClick={() => addItem(section.id)} className="flex items-center gap-1.5 mt-2 opacity-50 hover:opacity-90 transition-opacity" style={{ fontSize: 11.5, color: "#8A7B5C" }}>
-                                <Plus size={12} /> Add item
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <button onClick={() => addSection(group.id)} className="flex items-center gap-2 opacity-55 hover:opacity-100 transition-opacity" style={{ fontSize: 12, color: PAPER, border: `1px dashed ${MUTED}55`, borderRadius: 8, padding: "7px 12px" }}>
-                  <FolderPlus size={13} /> Add a list to {group.label}
-                </button>
-              </div>
-            );
-          })}
-        </>
+        <NotesLikePanel
+          sections={trip.sections}
+          noteGroups={noteGroups}
+          isSectionOpen={isSectionOpen}
+          toggleSection={toggleSection}
+          onAddSection={(region) => addSection("notes", region)}
+          onUpdateTitle={(id, v) => updateSectionTitle("notes", id, v)}
+          onUpdateRegion={(id, region) => updateSectionRegion("notes", id, region)}
+          onDeleteSection={(id) => deleteSection("notes", id)}
+          onAddItem={(sectionId) => addItem("notes", sectionId)}
+          onUpdateItem={(sectionId, itemId, v) => updateItem("notes", sectionId, itemId, v)}
+          onToggleItem={(sectionId, itemId) => toggleItem("notes", sectionId, itemId)}
+          onDeleteItem={(sectionId, itemId) => deleteItem("notes", sectionId, itemId)}
+        />
       )}
+
+      {trip.customTabs &&
+        trip.customTabs.map(
+          (ct) =>
+            tab === `custom:${ct.id}` && (
+              <div key={ct.id}>
+                <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+                  <Field
+                    value={ct.name}
+                    onChange={(v) => updateCustomTabName(ct.id, v)}
+                    className="fx-fraunces"
+                    placeholder="Tab name"
+                    style={{ fontSize: 20, fontStyle: "italic", fontWeight: 500, maxWidth: 320 }}
+                  />
+                  <button onClick={() => deleteCustomTab(ct.id)} className="flex items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity" style={{ fontSize: 12, color: "#C77", border: "1px solid #B5533C55", borderRadius: 8, padding: "6px 10px" }}>
+                    <Trash2 size={13} /> Delete tab
+                  </button>
+                </div>
+                <NotesLikePanel
+                  sections={ct.sections}
+                  noteGroups={noteGroups}
+                  isSectionOpen={isSectionOpen}
+                  toggleSection={toggleSection}
+                  onAddSection={(region) => addSection(ct.id, region)}
+                  onUpdateTitle={(id, v) => updateSectionTitle(ct.id, id, v)}
+                  onUpdateRegion={(id, region) => updateSectionRegion(ct.id, id, region)}
+                  onDeleteSection={(id) => deleteSection(ct.id, id)}
+                  onAddItem={(sectionId) => addItem(ct.id, sectionId)}
+                  onUpdateItem={(sectionId, itemId, v) => updateItem(ct.id, sectionId, itemId, v)}
+                  onToggleItem={(sectionId, itemId) => toggleItem(ct.id, sectionId, itemId)}
+                  onDeleteItem={(sectionId, itemId) => deleteItem(ct.id, sectionId, itemId)}
+                />
+              </div>
+            )
+        )}
+
+      {trip.bookingCategories &&
+        trip.bookingCategories.map(
+          (bc) =>
+            tab === `booking:${bc.id}` && (
+              <div key={bc.id}>
+                <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+                  <Field
+                    value={bc.name}
+                    onChange={(v) => updateBookingCategoryName(bc.id, v)}
+                    className="fx-fraunces"
+                    placeholder="Category name"
+                    style={{ fontSize: 20, fontStyle: "italic", fontWeight: 500, maxWidth: 320 }}
+                  />
+                  <button onClick={() => deleteBookingCategory(bc.id)} className="flex items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity" style={{ fontSize: 12, color: "#C77", border: "1px solid #B5533C55", borderRadius: 8, padding: "6px 10px" }}>
+                    <Trash2 size={13} /> Delete category
+                  </button>
+                </div>
+                <BookingsPanel
+                  category={bc.id}
+                  itemNoun={bc.name || "item"}
+                  whenLabel="Date / time"
+                  confirmLabel="Confirmation #"
+                  entries={bc.entries}
+                  noteGroups={noteGroups}
+                  onAdd={addBooking}
+                  onUpdate={updateBooking}
+                  onDelete={deleteBooking}
+                  isOpen={isSectionOpen}
+                  onToggle={toggleSection}
+                />
+              </div>
+            )
+        )}
 
       {tab === "hotels" && (
         <BookingsPanel
