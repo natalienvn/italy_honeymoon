@@ -3,7 +3,7 @@ import {
   Plane, Plus, Trash2, ChevronUp, ChevronDown, MapPin,
   FolderPlus, Check, Sparkles, Loader2, Pencil, FileText,
   BedDouble, UtensilsCrossed, Ticket, Download, Upload, AlertTriangle, FileUp, X,
-  ArrowLeft, Tag, Bookmark
+  ArrowLeft, Tag, Bookmark, Folder
 } from "lucide-react";
 
 // ---------- constants & small factories ----------
@@ -46,6 +46,10 @@ function makeTrip(name, dates) {
     customTabs: [],
     bookingCategories: [],
   };
+}
+
+function makeFolder(name) {
+  return { id: uid(), name: name || "New folder", trips: [] };
 }
 
 function makeItalyTrip() {
@@ -166,15 +170,30 @@ function migrateOldSingleTrip(old) {
   });
 }
 
-// Returns a valid { trips: [...] } root, or null if the input isn't recognizable.
+const DEFAULT_FOLDER_NAME = "Natalie and Tristan";
+
+function migrateFolderShape(f) {
+  return {
+    id: f.id || uid(),
+    name: f.name || "New folder",
+    trips: (f.trips || []).map(migrateTripShape),
+  };
+}
+
+// Returns a valid { folders: [...] } root, or null if the input isn't recognizable.
 function migrateRoot(loaded) {
   if (!loaded || typeof loaded !== "object") return null;
+  if (Array.isArray(loaded.folders)) {
+    return { folders: loaded.folders.map(migrateFolderShape) };
+  }
   if (Array.isArray(loaded.trips)) {
-    return { trips: loaded.trips.map(migrateTripShape) };
+    // Pre-folders save format: every existing trip lived at the root. Wrap
+    // them all into one folder rather than dropping anything.
+    return { folders: [{ id: uid(), name: DEFAULT_FOLDER_NAME, trips: loaded.trips.map(migrateTripShape) }] };
   }
   if (Array.isArray(loaded.days)) {
-    // Pre-multi-trip save format: a single trip's data sitting at the root.
-    return { trips: [migrateOldSingleTrip(loaded)] };
+    // Even older pre-multi-trip save format: a single trip's data sitting at the root.
+    return { folders: [{ id: uid(), name: DEFAULT_FOLDER_NAME, trips: [migrateOldSingleTrip(loaded)] }] };
   }
   return null;
 }
@@ -198,7 +217,7 @@ function loadInitial() {
   } catch {
     // fall through
   }
-  return { trips: [makeItalyTrip()] };
+  return { folders: [{ id: uid(), name: DEFAULT_FOLDER_NAME, trips: [makeItalyTrip()] }] };
 }
 
 function useDebouncedSave(data, ready) {
@@ -1367,7 +1386,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
 
 // ---------- home page: all trips ----------
 
-function HomeView({ trips, onOpen, onCreate, onDelete }) {
+function FolderView({ folder, onOpenTrip, onCreateTrip, onDeleteTrip, onRenameFolder, onBack, onDeleteFolder }) {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [dates, setDates] = useState("");
@@ -1376,7 +1395,7 @@ function HomeView({ trips, onOpen, onCreate, onDelete }) {
 
   const submit = () => {
     if (!name.trim()) return;
-    onCreate(name.trim(), dates.trim());
+    onCreateTrip(name.trim(), dates.trim());
     setName("");
     setDates("");
     setShowForm(false);
@@ -1384,13 +1403,27 @@ function HomeView({ trips, onOpen, onCreate, onDelete }) {
 
   return (
     <div>
-      <h1 className="fx-fraunces" style={{ fontSize: 30, fontStyle: "italic", fontWeight: 500, margin: 0 }}>My Trips</h1>
-      <p style={{ color: MUTED, fontSize: 13, marginTop: 4, marginBottom: 24 }}>Everything you're planning, all in one place.</p>
+      <button onClick={onBack} className="flex items-center gap-1.5 mb-4 opacity-70 hover:opacity-100 transition-opacity" style={{ fontSize: 12.5, color: "#F3ECDD" }}>
+        <ArrowLeft size={14} /> All folders
+      </button>
+
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
+        <Field
+          value={folder.name}
+          onChange={onRenameFolder}
+          className="fx-fraunces"
+          placeholder="Folder name"
+          style={{ fontSize: 28, fontStyle: "italic", fontWeight: 500, color: "#F3ECDD", minWidth: 220 }}
+        />
+        <button onClick={onDeleteFolder} className="flex items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity" style={{ fontSize: 12, color: "#C77", border: "1px solid #B5533C55", borderRadius: 8, padding: "6px 10px" }}>
+          <Trash2 size={13} /> Delete folder
+        </button>
+      </div>
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-        {trips.map((trip) => (
+        {folder.trips.map((trip) => (
           <div key={trip.id} className="fx-row" style={{ position: "relative" }}>
-            <button onClick={() => onOpen(trip.id)} className="w-full text-left" style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 12, padding: 16, display: "block" }}>
+            <button onClick={() => onOpenTrip(trip.id)} className="w-full text-left" style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 12, padding: 16, display: "block" }}>
               <div className="flex items-center gap-1 mb-3" style={{ minHeight: 8 }}>
                 {trip.legs.length > 0 ? (
                   trip.legs.map((l) => <span key={l.id} style={{ width: 8, height: 8, borderRadius: "50%", background: l.color, display: "inline-block" }} />)
@@ -1402,7 +1435,7 @@ function HomeView({ trips, onOpen, onCreate, onDelete }) {
               <div style={{ fontSize: 12, color: "#8A7B5C" }}>{trip.dates || "No dates yet"}</div>
               <div style={{ fontSize: 11, color: "#8A7B5C", marginTop: 10 }}>{trip.days.length} day{trip.days.length === 1 ? "" : "s"} planned</div>
             </button>
-            <button onClick={() => onDelete(trip.id)} className="fx-actions" title="Delete trip" aria-label="Delete trip" style={{ position: "absolute", top: 12, right: 12 }}>
+            <button onClick={() => onDeleteTrip(trip.id)} className="fx-actions" title="Delete trip" aria-label="Delete trip" style={{ position: "absolute", top: 12, right: 12 }}>
               <Trash2 size={13} color="#B5533C" />
             </button>
           </div>
@@ -1412,7 +1445,7 @@ function HomeView({ trips, onOpen, onCreate, onDelete }) {
           <button
             onClick={() => setShowForm(true)}
             className="flex flex-col items-center justify-center gap-2 opacity-70 hover:opacity-100 transition-opacity"
-            style={{ border: `1px dashed ${MUTED}66`, borderRadius: 12, padding: 16, minHeight: 110, color: PAPER }}
+            style={{ border: `1px dashed ${MUTED}66`, borderRadius: 12, padding: 16, minHeight: 110, color: "#F3ECDD" }}
           >
             <Plus size={20} />
             <span style={{ fontSize: 13 }}>New trip</span>
@@ -1443,12 +1476,83 @@ function HomeView({ trips, onOpen, onCreate, onDelete }) {
   );
 }
 
-// ---------- top-level app: trips list + persistence + backup ----------
+function HomeView({ folders, onOpen, onCreate, onDelete }) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+
+  const PAPER = "#F3ECDD", PAPER_TEXT = "#2B2118", BRASS = "#C99A44", MUTED = "#9FA8B3", INK = "#1B2430";
+
+  const submit = () => {
+    if (!name.trim()) return;
+    onCreate(name.trim());
+    setName("");
+    setShowForm(false);
+  };
+
+  return (
+    <div>
+      <h1 className="fx-fraunces" style={{ fontSize: 30, fontStyle: "italic", fontWeight: 500, margin: 0 }}>Trip Planning</h1>
+      <p style={{ color: MUTED, fontSize: 13, marginTop: 4, marginBottom: 24 }}>Organized by who's going.</p>
+
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+        {folders.map((folder) => {
+          const tripCount = folder.trips.length;
+          const dayCount = folder.trips.reduce((sum, t) => sum + t.days.length, 0);
+          return (
+            <div key={folder.id} className="fx-row" style={{ position: "relative" }}>
+              <button onClick={() => onOpen(folder.id)} className="w-full text-left" style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 12, padding: 16, display: "block" }}>
+                <Folder size={18} color="#C99A44" style={{ marginBottom: 10 }} />
+                <div className="fx-fraunces" style={{ fontSize: 18, fontWeight: 600, fontStyle: "italic", marginBottom: 2 }}>{folder.name}</div>
+                <div style={{ fontSize: 12, color: "#8A7B5C" }}>{tripCount} trip{tripCount === 1 ? "" : "s"}</div>
+                <div style={{ fontSize: 11, color: "#8A7B5C", marginTop: 10 }}>{dayCount} day{dayCount === 1 ? "" : "s"} planned</div>
+              </button>
+              <button onClick={() => onDelete(folder.id)} className="fx-actions" title="Delete folder" aria-label="Delete folder" style={{ position: "absolute", top: 12, right: 12 }}>
+                <Trash2 size={13} color="#B5533C" />
+              </button>
+            </div>
+          );
+        })}
+
+        {!showForm ? (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex flex-col items-center justify-center gap-2 opacity-70 hover:opacity-100 transition-opacity"
+            style={{ border: `1px dashed ${MUTED}66`, borderRadius: 12, padding: 16, minHeight: 110, color: PAPER }}
+          >
+            <Plus size={20} />
+            <span style={{ fontSize: 13 }}>New folder</span>
+          </button>
+        ) : (
+          <div style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 12, padding: 16 }}>
+            <Field value={name} onChange={setName} placeholder="Folder name (e.g. Mom & Dad)" className="mb-3" style={{ fontSize: 15, fontWeight: 600 }} autoFocus />
+            <div className="flex items-center gap-2">
+              <button onClick={submit} style={{ fontSize: 12, fontWeight: 500, color: INK, background: BRASS, borderRadius: 8, padding: "6px 12px" }}>
+                Create
+              </button>
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setName("");
+                }}
+                style={{ fontSize: 12, color: "#8A7B5C" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- top-level app: folders of trips + persistence + backup ----------
 
 export default function App() {
-  const [data, setData] = useState(() => ({ trips: [makeItalyTrip()] }));
+  const [data, setData] = useState(() => ({ folders: [{ id: uid(), name: DEFAULT_FOLDER_NAME, trips: [makeItalyTrip()] }] }));
   const [ready, setReady] = useState(false);
-  const [view, setView] = useState("home");
+  const [folderId, setFolderId] = useState(null);
+  const [tripId, setTripId] = useState(null);
   const status = useDebouncedSave(data, ready);
 
   useEffect(() => {
@@ -1456,18 +1560,30 @@ export default function App() {
     setReady(true);
   }, []);
 
-  const updateTrip = (tripId, fn) => setData((d) => ({ ...d, trips: d.trips.map((t) => (t.id === tripId ? fn(t) : t)) }));
+  const updateFolder = (fid, fn) => setData((d) => ({ ...d, folders: d.folders.map((f) => (f.id === fid ? fn(f) : f)) }));
+  const updateTrip = (fid, tid, fn) => updateFolder(fid, (f) => ({ ...f, trips: f.trips.map((t) => (t.id === tid ? fn(t) : t)) }));
 
-  const createTrip = (name, dates) => {
-    const t = { ...makeTrip(name, dates) };
-    setData((d) => ({ ...d, trips: [...d.trips, t] }));
-    setView(t.id);
+  const createFolder = (name) => {
+    const f = makeFolder(name);
+    setData((d) => ({ ...d, folders: [...d.folders, f] }));
+    setFolderId(f.id);
+  };
+  const deleteFolder = (fid) => {
+    if (!window.confirm("Delete this folder and every trip inside it? This can't be undone.")) return;
+    setData((d) => ({ ...d, folders: d.folders.filter((f) => f.id !== fid) }));
+    setFolderId(null);
+    setTripId(null);
   };
 
-  const deleteTrip = (tripId) => {
+  const createTrip = (fid, name, dates) => {
+    const t = makeTrip(name, dates);
+    updateFolder(fid, (f) => ({ ...f, trips: [...f.trips, t] }));
+    setTripId(t.id);
+  };
+  const deleteTrip = (fid, tid) => {
     if (!window.confirm("Delete this trip? This can't be undone.")) return;
-    setData((d) => ({ ...d, trips: d.trips.filter((t) => t.id !== tripId) }));
-    setView("home");
+    updateFolder(fid, (f) => ({ ...f, trips: f.trips.filter((t) => t.id !== tid) }));
+    setTripId(null);
   };
 
   const importInputRef = useRef(null);
@@ -1476,7 +1592,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `trip-planner-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `trip-planning-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1490,7 +1606,8 @@ export default function App() {
         const migrated = migrateRoot(parsed);
         if (!migrated) throw new Error("unrecognized shape");
         setData(migrated);
-        setView("home");
+        setFolderId(null);
+        setTripId(null);
       } catch {
         window.alert("That doesn't look like a valid backup file.");
       }
@@ -1504,7 +1621,8 @@ export default function App() {
   const BRASS = "#C99A44";
   const MUTED = "#9FA8B3";
 
-  const activeTrip = view !== "home" ? data.trips.find((t) => t.id === view) : null;
+  const activeFolder = folderId ? data.folders.find((f) => f.id === folderId) : null;
+  const activeTrip = activeFolder && tripId ? activeFolder.trips.find((t) => t.id === tripId) : null;
 
   return (
     <div style={{ background: INK, minHeight: "100vh" }}>
@@ -1541,22 +1659,43 @@ export default function App() {
           </div>
         )}
 
-        {view === "home" && <HomeView trips={data.trips} onOpen={setView} onCreate={createTrip} onDelete={deleteTrip} />}
+        {!folderId && <HomeView folders={data.folders} onOpen={setFolderId} onCreate={createFolder} onDelete={deleteFolder} />}
 
-        {view !== "home" && activeTrip && (
-          <TripPlanner
-            trip={activeTrip}
-            updateTrip={(fn) => updateTrip(activeTrip.id, fn)}
-            onBack={() => setView("home")}
-            onDeleteTrip={() => deleteTrip(activeTrip.id)}
+        {folderId && !tripId && activeFolder && (
+          <FolderView
+            folder={activeFolder}
+            onOpenTrip={setTripId}
+            onCreateTrip={(name, dates) => createTrip(folderId, name, dates)}
+            onDeleteTrip={(tid) => deleteTrip(folderId, tid)}
+            onRenameFolder={(name) => updateFolder(folderId, (f) => ({ ...f, name }))}
+            onBack={() => setFolderId(null)}
+            onDeleteFolder={() => deleteFolder(folderId)}
           />
         )}
 
-        {view !== "home" && !activeTrip && (
+        {folderId && !activeFolder && (
+          <div>
+            <p style={{ color: MUTED, fontSize: 13, marginBottom: 12 }}>That folder couldn't be found.</p>
+            <button onClick={() => setFolderId(null)} className="flex items-center gap-1.5" style={{ fontSize: 12.5, color: PAPER, border: `1px solid ${MUTED}55`, borderRadius: 8, padding: "6px 10px" }}>
+              <ArrowLeft size={13} /> All folders
+            </button>
+          </div>
+        )}
+
+        {folderId && tripId && activeTrip && (
+          <TripPlanner
+            trip={activeTrip}
+            updateTrip={(fn) => updateTrip(folderId, tripId, fn)}
+            onBack={() => setTripId(null)}
+            onDeleteTrip={() => deleteTrip(folderId, tripId)}
+          />
+        )}
+
+        {folderId && tripId && activeFolder && !activeTrip && (
           <div>
             <p style={{ color: MUTED, fontSize: 13, marginBottom: 12 }}>That trip couldn't be found.</p>
-            <button onClick={() => setView("home")} className="flex items-center gap-1.5" style={{ fontSize: 12.5, color: PAPER, border: `1px solid ${MUTED}55`, borderRadius: 8, padding: "6px 10px" }}>
-              <ArrowLeft size={13} /> All trips
+            <button onClick={() => setTripId(null)} className="flex items-center gap-1.5" style={{ fontSize: 12.5, color: PAPER, border: `1px solid ${MUTED}55`, borderRadius: 8, padding: "6px 10px" }}>
+              <ArrowLeft size={13} /> Back to {activeFolder.name}
             </button>
           </div>
         )}

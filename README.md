@@ -1,9 +1,11 @@
-# My Trips — Travel Planner
+# Trip Planning
 
-A home page listing every trip you're planning, and inside each trip: flights,
-a day-by-day itinerary, notes grouped by destination, and trackers for
-hotels, restaurants, and experiences. Add as many trips as you want — Italy
-comes pre-loaded with what was already planned there.
+A home page of folders — one per family or group (e.g. "Natalie and
+Tristan") — and inside each folder, all the trips being planned for that
+group. Inside each trip: flights, a day-by-day itinerary, notes grouped by
+destination, and trackers for hotels, restaurants, and experiences. Add as
+many folders and trips as you want — Italy comes pre-loaded under "Natalie
+and Tristan" with what was already planned there.
 
 ## Local development
 
