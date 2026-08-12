@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   Plane, Plus, Trash2, ChevronUp, ChevronDown, MapPin,
-  FolderPlus, Check, Sparkles, Loader2, Pencil, FileText,
+  FolderPlus, Check, Sparkles, Loader2, FileText,
   BedDouble, UtensilsCrossed, Ticket, Download, Upload, AlertTriangle, FileUp, X,
   ArrowLeft, Tag, Bookmark, Folder, Search, Send
 } from "lucide-react";
@@ -23,7 +23,18 @@ const TABS = [
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const it = (text) => ({ id: uid(), text, checked: false });
-const day = (date, region, plan) => ({ id: uid(), date, region, plan, notes: "", organized: null });
+const dayItem = (time, text) => ({ id: uid(), time: time || "", text: text || "", checked: false });
+const daySection = (title, items) => ({ id: uid(), title, items: items || [] });
+const DEFAULT_DAY_SECTION_TITLES = ["Hotel", "Restaurants", "Experiences", "Sights", "Travel"];
+const day = (date, region, plan) => ({
+  id: uid(),
+  date,
+  region,
+  plan,
+  notes: "",
+  organized: null,
+  sections: DEFAULT_DAY_SECTION_TITLES.map((t) => daySection(t)),
+});
 const list = (title, region, items) => ({ id: uid(), title, region, items });
 const booking = (region) => ({ id: uid(), name: "", region: region || "general", when: "", confirmation: "", notes: "" });
 const leg = (label, color) => ({ id: uid(), label, color });
@@ -122,6 +133,41 @@ function makeItalyTrip() {
 const STORAGE_KEY = "travel-planner-v1";
 const LEGACY_STORAGE_KEY = "italy-trip-planner-v1";
 
+function migrateDayShape(d) {
+  const hasSections = Array.isArray(d.sections) && d.sections.length > 0;
+  let sections;
+  if (hasSections) {
+    sections = d.sections.map((s) => ({
+      id: s.id || uid(),
+      title: s.title || "Untitled",
+      items: (s.items || []).map((i) => ({ id: i.id || uid(), time: i.time || "", text: i.text || "", checked: !!i.checked })),
+    }));
+  } else {
+    sections = DEFAULT_DAY_SECTION_TITLES.map((t) => daySection(t));
+    // Preserve any pre-existing freeform notes so this migration can never lose data --
+    // it just surfaces as a section the user can review and redistribute if they want.
+    const legacyText = ((d.organized || d.notes || "") + "").trim();
+    if (legacyText) {
+      const lines = legacyText
+        .split("\n")
+        .map((l) => l.replace(/^[-*]\s*/, "").trim())
+        .filter(Boolean);
+      if (lines.length) {
+        sections.push(daySection("Notes (from before)", lines.map((l) => dayItem("", l))));
+      }
+    }
+  }
+  return {
+    id: d.id || uid(),
+    date: d.date || "",
+    region: d.region || "travel",
+    plan: d.plan || "",
+    notes: d.notes || "",
+    organized: d.organized || null,
+    sections,
+  };
+}
+
 function migrateTripShape(t) {
   const legs = Array.isArray(t.legs) ? t.legs : [];
   const validIds = [...legs.map((l) => l.id), "general"];
@@ -132,7 +178,7 @@ function migrateTripShape(t) {
     dates: t.dates || "",
     legs,
     flights: { ...defaultFlights(), ...(t.flights || {}) },
-    days: (t.days || []).map((d) => ({ notes: "", organized: null, ...d })),
+    days: (t.days || []).map(migrateDayShape),
     sections: fixSections(t.sections),
     bookings: {
       hotels: (t.bookings && t.bookings.hotels) || [],
@@ -347,25 +393,6 @@ function IconBtn({ onClick, title, children, danger }) {
   );
 }
 
-function renderOrganized(text) {
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-  return (
-    <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-      {lines.map((line, i) => {
-        const clean = line.replace(/^[-*]\s*/, "");
-        const m = clean.match(/^(\d{1,2}(:\d{2})?\s?(AM|PM|am|pm))\s*[\u2014\u2013:-]\s*(.*)$/);
-        return (
-          <li key={i} style={{ display: "flex", gap: 8, fontSize: 13, lineHeight: 1.45 }}>
-            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#8A7B5C", minWidth: 64, flexShrink: 0, paddingTop: 1 }}>
-              {m ? m[1] : ""}
-            </span>
-            <span>{m ? m[4] : clean}</span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
 
 function GroupBadge({ group }) {
   return (
@@ -938,8 +965,18 @@ function summarizeTrip(trip) {
   if (trip.days.length) {
     lines.push("Day-by-day plan:");
     trip.days.forEach((d, i) => {
-      const firstLine = d.organized ? d.organized.split("\n")[0].replace(/^-\s*/, "") : "";
-      const plan = (d.plan || firstLine || "").trim() || "(nothing planned yet)";
+      const parts = [];
+      if (d.plan) parts.push(d.plan);
+      (d.sections || []).forEach((s) => {
+        if (s.items && s.items.length) {
+          const entries = s.items
+            .map((it) => `${it.time ? it.time + " " : ""}${it.text}`.trim())
+            .filter(Boolean)
+            .join("; ");
+          if (entries) parts.push(`${s.title}: ${entries}`);
+        }
+      });
+      const plan = parts.length ? parts.join(" | ") : "(nothing planned yet)";
       lines.push(`  Day ${i + 1}, ${d.date || "date TBD"} (${legLabel(d.region)}): ${plan}`);
     });
   } else {
@@ -1163,6 +1200,25 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
       return { ...t, days: arr };
     });
 
+  const updateDaySections = (dayId, updater) =>
+    updateTrip((t) => ({ ...t, days: t.days.map((d) => (d.id === dayId ? { ...d, sections: updater(d.sections) } : d)) }));
+  const addDaySection = (dayId) => updateDaySections(dayId, (secs) => [...secs, daySection("New section")]);
+  const updateDaySectionTitle = (dayId, sectionId, title) =>
+    updateDaySections(dayId, (secs) => secs.map((s) => (s.id === sectionId ? { ...s, title } : s)));
+  const deleteDaySection = (dayId, sectionId) => updateDaySections(dayId, (secs) => secs.filter((s) => s.id !== sectionId));
+  const addDayItem = (dayId, sectionId) =>
+    updateDaySections(dayId, (secs) => secs.map((s) => (s.id === sectionId ? { ...s, items: [...s.items, dayItem("", "")] } : s)));
+  const updateDayItem = (dayId, sectionId, itemId, field, val) =>
+    updateDaySections(dayId, (secs) =>
+      secs.map((s) => (s.id === sectionId ? { ...s, items: s.items.map((i) => (i.id === itemId ? { ...i, [field]: val } : i)) } : s))
+    );
+  const toggleDayItem = (dayId, sectionId, itemId) =>
+    updateDaySections(dayId, (secs) =>
+      secs.map((s) => (s.id === sectionId ? { ...s, items: s.items.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i)) } : s))
+    );
+  const deleteDayItem = (dayId, sectionId, itemId) =>
+    updateDaySections(dayId, (secs) => secs.map((s) => (s.id === sectionId ? { ...s, items: s.items.filter((i) => i.id !== itemId) } : s)));
+
   const getScopedSections = (t, scope) =>
     scope === "notes" ? t.sections : ((t.customTabs || []).find((ct) => ct.id === scope) || {}).sections || [];
   const setScopedSections = (t, scope, updater) =>
@@ -1304,21 +1360,13 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
     });
   };
 
-  const dayUi = (id) => ui[id] || { expanded: false, editing: false, loading: false, error: null };
+  const dayUi = (id) => ui[id] || { expanded: false, loading: false, error: null };
   const patchUi = (id, patch) => setUi((prev) => ({ ...prev, [id]: { ...dayUi(id), ...patch } }));
 
   const isSectionOpen = (id) => sectionOpen[id] !== false;
   const toggleSection = (id) => setSectionOpen((prev) => ({ ...prev, [id]: !isSectionOpen(id) }));
 
-  const toggleExpand = (d) => {
-    const cur = dayUi(d.id);
-    const willExpand = !cur.expanded;
-    patchUi(d.id, {
-      expanded: willExpand,
-      editing: willExpand ? (cur.editing || !d.organized) : cur.editing,
-      error: null,
-    });
-  };
+  const toggleExpand = (d) => patchUi(d.id, { expanded: !dayUi(d.id).expanded, error: null });
 
   const organizeDay = async (id) => {
     const d = trip.days.find((x) => x.id === id);
@@ -1328,14 +1376,31 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
       const res = await fetch("/api/organize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: d.notes }),
+        body: JSON.stringify({ notes: d.notes, sectionTitles: d.sections.map((s) => s.title) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
-      const text = (json.text || "").trim();
-      if (!text) throw new Error("Claude didn't return any text");
-      updateTrip((t) => ({ ...t, days: t.days.map((x) => (x.id === id ? { ...x, organized: text } : x)) }));
-      patchUi(id, { loading: false, editing: false, expanded: true });
+      const placements = Array.isArray(json.sections) ? json.sections : [];
+      if (placements.length === 0) throw new Error("Didn't find anything to organize \u2014 try adding more detail.");
+      updateTrip((t) => ({
+        ...t,
+        days: t.days.map((x) => {
+          if (x.id !== id) return x;
+          let nextSections = [...x.sections];
+          placements.forEach((p) => {
+            const newItems = (Array.isArray(p.items) ? p.items : []).map((it) => dayItem(it.time || "", it.text || ""));
+            if (newItems.length === 0) return;
+            const idx = nextSections.findIndex((s) => s.title.toLowerCase() === String(p.title || "").toLowerCase());
+            if (idx >= 0) {
+              nextSections = nextSections.map((s, i) => (i === idx ? { ...s, items: [...s.items, ...newItems] } : s));
+            } else {
+              nextSections = [...nextSections, daySection(p.title || "Notes", newItems)];
+            }
+          });
+          return { ...x, sections: nextSections };
+        }),
+      }));
+      patchUi(id, { loading: false, expanded: true });
     } catch (err) {
       patchUi(id, { loading: false, error: (err && err.message) || "Couldn't organize that \u2014 try again." });
     }
@@ -1538,8 +1603,8 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
               const realIdx = trip.days.findIndex((x) => x.id === d.id);
               const region = regionOf(d.region);
               const u = dayUi(d.id);
-              const label = d.organized ? "Itinerary" : d.notes ? "Draft itinerary" : "Write today's itinerary";
-              const dotColor = d.organized ? BRASS : d.notes ? "#8A7B5C" : "transparent";
+              const filledSections = d.sections.filter((s) => s.items.length > 0).length;
+              const dotColor = filledSections > 0 ? BRASS : "transparent";
               return (
                 <div key={d.id} className="fx-row" style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 10, borderLeft: `4px solid ${region.color}` }}>
                   <div className="flex items-start gap-3" style={{ padding: "10px 12px 8px 12px" }}>
@@ -1566,52 +1631,86 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
                     <button onClick={() => toggleExpand(d)} className="flex items-center gap-1.5" style={{ fontSize: 11.5, color: "#8A7B5C", fontWeight: 500 }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
                       <FileText size={12} />
-                      {label}
+                      Day details
                       {u.expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                     </button>
 
                     {u.expanded && (
-                      u.editing || !d.organized ? (
-                        <div className="mt-2">
-                          <textarea
-                            autoFocus
-                            value={d.notes || ""}
-                            onChange={(e) => updateDay(d.id, "notes", e.target.value)}
-                            placeholder="Times, activities, reservations \u2014 just brain-dump what you're doing this day."
-                            rows={5}
-                            className="w-full bg-transparent outline-none resize-none text-sm"
-                            style={{ color: PAPER_TEXT, lineHeight: 1.5, border: "1px dashed #8A7B5C55", borderRadius: 8, padding: "8px 10px" }}
-                          />
-                          <div className="flex items-center gap-2 mt-2">
-                            <button
-                              onClick={() => organizeDay(d.id)}
-                              disabled={!(d.notes || "").trim() || u.loading}
-                              className="flex items-center gap-1.5"
-                              style={{
-                                fontSize: 12, fontWeight: 500, color: INK, background: BRASS, borderRadius: 8,
-                                padding: "6px 12px", opacity: !(d.notes || "").trim() || u.loading ? 0.5 : 1,
-                                cursor: !(d.notes || "").trim() || u.loading ? "default" : "pointer",
-                              }}
-                            >
-                              {u.loading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                              {u.loading ? "Organizing\u2026" : "Organize"}
-                            </button>
-                            {d.organized && (
-                              <button onClick={() => patchUi(d.id, { editing: false })} style={{ fontSize: 12, color: "#8A7B5C" }}>
-                                Cancel
-                              </button>
-                            )}
-                          </div>
-                          {u.error && <p style={{ color: "#B5533C", fontSize: 11.5, marginTop: 6 }}>{u.error}</p>}
-                        </div>
-                      ) : (
-                        <div className="mt-2">
-                          {renderOrganized(d.organized)}
-                          <button onClick={() => patchUi(d.id, { editing: true })} className="flex items-center gap-1 mt-2.5 opacity-60 hover:opacity-100 transition-opacity" style={{ fontSize: 11.5, color: "#8A7B5C" }}>
-                            <Pencil size={11} /> Edit notes
+                      <div className="mt-2">
+                        <textarea
+                          value={d.notes || ""}
+                          onChange={(e) => updateDay(d.id, "notes", e.target.value)}
+                          placeholder="Brain-dump times, activities, reservations here, then Organize to sort them into the sections below."
+                          rows={2}
+                          className="w-full bg-transparent outline-none resize-none text-sm"
+                          style={{ color: PAPER_TEXT, lineHeight: 1.5, border: "1px dashed #8A7B5C55", borderRadius: 8, padding: "8px 10px", marginBottom: 6 }}
+                        />
+                        <div className="flex items-center gap-2 mb-3">
+                          <button
+                            onClick={() => organizeDay(d.id)}
+                            disabled={!(d.notes || "").trim() || u.loading}
+                            className="flex items-center gap-1.5"
+                            style={{
+                              fontSize: 12, fontWeight: 500, color: INK, background: BRASS, borderRadius: 8,
+                              padding: "6px 12px", opacity: !(d.notes || "").trim() || u.loading ? 0.5 : 1,
+                              cursor: !(d.notes || "").trim() || u.loading ? "default" : "pointer",
+                            }}
+                          >
+                            {u.loading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                            {u.loading ? "Organizing\u2026" : "Organize into sections"}
                           </button>
                         </div>
-                      )
+                        {u.error && <p style={{ color: "#B5533C", fontSize: 11.5, marginBottom: 8 }}>{u.error}</p>}
+
+                        <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
+                          {d.sections.map((section) => (
+                            <div key={section.id} style={{ background: "rgba(0,0,0,0.05)", borderRadius: 8, padding: "8px 10px" }}>
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <Field
+                                  value={section.title}
+                                  onChange={(v) => updateDaySectionTitle(d.id, section.id, v)}
+                                  className="fx-fraunces flex-1"
+                                  style={{ fontSize: 12.5, fontWeight: 600, fontStyle: "italic", color: PAPER_TEXT }}
+                                />
+                                <button onClick={() => addDayItem(d.id, section.id)} title="Add item" aria-label="Add item" style={{ opacity: 0.55 }}>
+                                  <Plus size={12} color="#8A7B5C" />
+                                </button>
+                                <button onClick={() => deleteDaySection(d.id, section.id)} title="Delete section" aria-label="Delete section" style={{ opacity: 0.4 }}>
+                                  <Trash2 size={11} color="#B5533C" />
+                                </button>
+                              </div>
+                              {section.items.length === 0 && <p style={{ fontSize: 11, color: "#8A7B5C", fontStyle: "italic", margin: 0 }}>Nothing yet</p>}
+                              <div className="flex flex-col gap-1">
+                                {section.items.map((item) => (
+                                  <div key={item.id} className="flex items-start gap-1.5">
+                                    <Stamp checked={item.checked} onClick={() => toggleDayItem(d.id, section.id, item.id)} color={BRASS} />
+                                    <input
+                                      value={item.time}
+                                      onChange={(e) => updateDayItem(d.id, section.id, item.id, "time", e.target.value)}
+                                      placeholder="time"
+                                      className="outline-none bg-transparent"
+                                      style={{ width: 54, flexShrink: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: PAPER_TEXT, paddingTop: 3 }}
+                                    />
+                                    <AutoNote
+                                      value={item.text}
+                                      onChange={(v) => updateDayItem(d.id, section.id, item.id, "text", v)}
+                                      placeholder="Details"
+                                      className="flex-1"
+                                      style={{ fontSize: 12, color: PAPER_TEXT, textDecoration: item.checked ? "line-through" : "none", opacity: item.checked ? 0.55 : 1, paddingTop: 2 }}
+                                    />
+                                    <button onClick={() => deleteDayItem(d.id, section.id, item.id)} title="Delete" aria-label="Delete" style={{ opacity: 0.35, marginTop: 3 }}>
+                                      <Trash2 size={11} color="#B5533C" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <button onClick={() => addDaySection(d.id)} className="flex items-center gap-1.5 opacity-55 hover:opacity-100 transition-opacity" style={{ fontSize: 11.5, color: "#8A7B5C" }}>
+                          <FolderPlus size={12} /> Add section
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

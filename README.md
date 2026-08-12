@@ -55,6 +55,20 @@ of a trip. Notes, bookings, and days can all be tagged to a destination, plus
 two built-in groups that are always there: **General** (trip-wide notes not
 tied to one place) and **Travel** (for transit days, like a flight day).
 
+## Day structure
+
+Each day breaks down into editable sections \u2014 Hotel, Restaurants,
+Experiences, Sights, and Travel by default \u2014 and you can rename, delete, or
+add your own (click "+ Add section"). Every entry in a section has its own
+time field plus a details field, so you get real per-day timing instead of
+one big note.
+
+There's still a quick brain-dump box on each day: type freely, hit "Organize
+into sections," and Claude sorts what you wrote into the right sections
+automatically (matching whatever sections that day actually has, including
+ones you've renamed or added). Anything it can't place lands in a "Notes"
+section instead of getting lost.
+
 ## Suggestions & chat
 
 On the Itinerary tab, the **Suggestions** button opens a panel that reads

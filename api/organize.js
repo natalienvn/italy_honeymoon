@@ -1,10 +1,31 @@
+function buildSystemPrompt(sectionTitles) {
+  const titles = Array.isArray(sectionTitles) && sectionTitles.length ? sectionTitles : ["Hotel", "Restaurants", "Experiences", "Sights", "Travel"];
+  const titleList = titles.map((t) => `"${t}"`).join(", ");
+  return `You help sort a traveler's rough, freeform notes about a single day of a trip into structured sections.
+
+This day currently has these sections: ${titleList}.
+
+Read the notes and sort each activity or item into the single most appropriate section from that exact list. If something genuinely doesn't fit any of them, put it in a section called "Notes" instead (even though "Notes" isn't one of the given sections).
+
+For each item, pull out a time if one is stated or clearly implied (formatted like "9:00 AM"), and a short description of the activity. If no time applies, leave time as "".
+
+Respond with ONLY a JSON object (no markdown fences, no commentary) in this exact shape:
+{
+  "sections": [
+    { "title": "<one of the exact section names given, or \\"Notes\\">", "items": [{ "time": "", "text": "" }] }
+  ]
+}
+
+Only include sections that end up with at least one item. Do not invent activities that weren't mentioned or reasonably implied by the notes.`;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
 
-  const { notes } = req.body || {};
+  const { notes, sectionTitles } = req.body || {};
   if (!notes || typeof notes !== "string" || !notes.trim()) {
     res.status(400).json({ error: "Missing notes" });
     return;
@@ -26,9 +47,8 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-5",
-        max_tokens: 1000,
-        system:
-          "You turn a traveler's rough, freeform notes about a single day of a trip into a clean itinerary. Output ONLY a plain list, one activity per line, each line starting with '- '. Where a time is stated or clearly implied, start the line with the time as 'H:MM AM/PM \u2014 ' before the activity; if no time applies, just describe the activity, placed in a sensible order. Do not invent activities that weren't mentioned or reasonably implied, and do not add commentary, headers, or a summary.",
+        max_tokens: 1500,
+        system: buildSystemPrompt(sectionTitles),
         messages: [{ role: "user", content: notes }],
       }),
     });
@@ -41,13 +61,23 @@ export default async function handler(req, res) {
       return;
     }
 
-    const text = (json.content || [])
+    const rawText = (json.content || [])
       .filter((b) => b.type === "text")
       .map((b) => b.text)
       .join("\n")
       .trim();
 
-    res.status(200).json({ text });
+    let parsed;
+    try {
+      const cleaned = rawText.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      res.status(500).json({ error: "Couldn't understand the result. Try again, or add a bit more detail to your notes." });
+      return;
+    }
+
+    const sections = Array.isArray(parsed.sections) ? parsed.sections : [];
+    res.status(200).json({ sections });
   } catch (err) {
     res.status(500).json({ error: "Request to Anthropic failed" });
   }
