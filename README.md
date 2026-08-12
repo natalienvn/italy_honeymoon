@@ -55,6 +55,20 @@ of a trip. Notes, bookings, and days can all be tagged to a destination, plus
 two built-in groups that are always there: **General** (trip-wide notes not
 tied to one place) and **Travel** (for transit days, like a flight day).
 
+## Suggestions & chat
+
+On the Itinerary tab, the **Suggestions** button opens a panel that reads
+your whole trip \u2014 destinations, every day's plan, and everything already
+booked \u2014 and can search the web broadly (review sites, travel blogs,
+Reddit threads, wherever) to point out gaps and suggest real options for
+them. You can also just type a question instead of running the full review
+("what's a good day trip from Siena?"), and keep chatting with follow-ups \u2014
+it remembers the conversation as you go.
+
+Same cost note as Search & compare above: this uses live web search through
+your `ANTHROPIC_API_KEY`, only when you actually open the panel and send
+something.
+
 ## Searching & comparing options
 
 Inside Hotels, Restaurants, Experiences, or any custom booking category, each

@@ -3,7 +3,7 @@ import {
   Plane, Plus, Trash2, ChevronUp, ChevronDown, MapPin,
   FolderPlus, Check, Sparkles, Loader2, Pencil, FileText,
   BedDouble, UtensilsCrossed, Ticket, Download, Upload, AlertTriangle, FileUp, X,
-  ArrowLeft, Tag, Bookmark, Folder, Search
+  ArrowLeft, Tag, Bookmark, Folder, Search, Send
 } from "lucide-react";
 
 // ---------- constants & small factories ----------
@@ -919,6 +919,189 @@ function ImportPanel({ legs, noteGroups, onApply }) {
 
 // ---------- one trip's full planner (tabs: itinerary/notes/hotels/restaurants/experiences/import) ----------
 
+// ---------- itinerary review + open-ended chat with web search ----------
+
+function summarizeTrip(trip) {
+  const legLabel = (id) => {
+    const l = trip.legs.find((x) => x.id === id);
+    if (l) return l.label;
+    return id === "travel" ? "Travel" : "General";
+  };
+  const lines = [];
+  lines.push(`Trip: ${trip.name}${trip.dates ? ` (${trip.dates})` : ""}`);
+  if (trip.legs.length) lines.push(`Destinations: ${trip.legs.map((l) => l.label).join(", ")}`);
+  if (trip.flights.outRoute || trip.flights.retRoute) {
+    lines.push(
+      `Flights: ${trip.flights.outRoute || "?"} on ${trip.flights.outDate || "an unset date"}; return ${trip.flights.retRoute || "?"} on ${trip.flights.retDate || "an unset date"}`
+    );
+  }
+  if (trip.days.length) {
+    lines.push("Day-by-day plan:");
+    trip.days.forEach((d, i) => {
+      const firstLine = d.organized ? d.organized.split("\n")[0].replace(/^-\s*/, "") : "";
+      const plan = (d.plan || firstLine || "").trim() || "(nothing planned yet)";
+      lines.push(`  Day ${i + 1}, ${d.date || "date TBD"} (${legLabel(d.region)}): ${plan}`);
+    });
+  } else {
+    lines.push("No days added yet.");
+  }
+  const summarizeEntries = (list, noun) =>
+    list.length
+      ? `${noun}: ` + list.map((b) => `${b.name || "(unnamed)"}${b.region ? ` [${legLabel(b.region)}]` : ""}`).join("; ")
+      : `${noun}: none booked yet.`;
+  lines.push(summarizeEntries(trip.bookings.hotels, "Hotels"));
+  lines.push(summarizeEntries(trip.bookings.restaurants, "Restaurants"));
+  lines.push(summarizeEntries(trip.bookings.experiences, "Experiences"));
+  (trip.bookingCategories || []).forEach((bc) => lines.push(summarizeEntries(bc.entries, bc.name || "Custom category")));
+  if (trip.sections.length) {
+    lines.push(
+      "Saved lists/notes: " + trip.sections.map((s) => `"${s.title}" (${legLabel(s.region)}, ${s.items.length} item${s.items.length === 1 ? "" : "s"})`).join("; ")
+    );
+  }
+  return lines.join("\n");
+}
+
+function SuggestionsPanel({ trip }) {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const scrollRef = useRef(null);
+
+  const PAPER = "#F3ECDD", PAPER_TEXT = "#2B2118", BRASS = "#C99A44", MUTED = "#9FA8B3", INK = "#1B2430";
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, loading]);
+
+  const send = async (text) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+    const nextMessages = [...messages, { role: "user", content: trimmed }];
+    setMessages(nextMessages);
+    setDraft("");
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: nextMessages, tripContext: summarizeTrip(trip) }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
+      const reply = (json.text || "").trim();
+      if (!reply) throw new Error("No response \u2014 try again.");
+      setMessages((m) => [...m, { role: "assistant", content: reply }]);
+    } catch (err) {
+      setError((err && err.message) || "Something went wrong \u2014 try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mb-7">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 transition-opacity"
+        style={{
+          fontSize: 12.5, fontWeight: 500, padding: "8px 14px", borderRadius: 8,
+          background: open ? BRASS : "transparent",
+          color: open ? INK : PAPER,
+          border: open ? "none" : `1px dashed ${MUTED}66`,
+        }}
+      >
+        <Sparkles size={14} /> Suggestions
+        {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+      </button>
+
+      {open && (
+        <div className="mt-3" style={{ background: "rgba(0,0,0,0.18)", borderRadius: 12, padding: 14 }}>
+          {messages.length === 0 && (
+            <div className="mb-3">
+              <p style={{ fontSize: 13, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
+                I'll look over your destinations, days, and what's already booked, then search the web &mdash;
+                Reddit threads, review sites, travel blogs, anything relevant &mdash; for suggestions on what
+                might be missing. You can also just ask a question below instead.
+              </p>
+              <button
+                onClick={() =>
+                  send(
+                    "Please review my whole itinerary, point out any gaps (days with nothing planned, destinations with no restaurants or experiences booked, missing must-sees, etc.), and search the web for good, current suggestions to fill them in."
+                  )
+                }
+                className="flex items-center gap-1.5"
+                style={{ fontSize: 12.5, fontWeight: 500, color: INK, background: BRASS, borderRadius: 8, padding: "8px 14px" }}
+              >
+                <Sparkles size={13} /> Analyze my itinerary
+              </button>
+            </div>
+          )}
+
+          {messages.length > 0 && (
+            <div ref={scrollRef} className="flex flex-col gap-3 mb-3" style={{ maxHeight: 440, overflowY: "auto" }}>
+              {messages.map((m, i) => (
+                <div
+                  key={i}
+                  style={{
+                    alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                    maxWidth: "88%",
+                    background: m.role === "user" ? BRASS : PAPER,
+                    color: m.role === "user" ? INK : PAPER_TEXT,
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    fontSize: 13,
+                    lineHeight: 1.55,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {m.content}
+                </div>
+              ))}
+              {loading && (
+                <div style={{ alignSelf: "flex-start", color: MUTED, fontSize: 12.5, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Loader2 size={13} className="animate-spin" /> Thinking&hellip;
+                </div>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 mb-2" style={{ background: "#B5533C", color: "#F3ECDD", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
+              <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") send(draft);
+              }}
+              placeholder={messages.length === 0 ? "Or ask a question about your trip\u2026" : "Ask a follow-up\u2026"}
+              disabled={loading}
+              className="flex-1 outline-none text-sm"
+              style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 8, padding: "9px 11px" }}
+            />
+            <button
+              onClick={() => send(draft)}
+              disabled={!draft.trim() || loading}
+              className="flex items-center justify-center"
+              style={{ width: 36, height: 36, flexShrink: 0, color: INK, background: BRASS, borderRadius: 8, opacity: !draft.trim() || loading ? 0.5 : 1, cursor: !draft.trim() || loading ? "default" : "pointer" }}
+            >
+              <Send size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
   const [filter, setFilter] = useState("all");
   const [ui, setUi] = useState({});
@@ -1335,6 +1518,8 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
               </div>
             ))}
           </div>
+
+          <SuggestionsPanel trip={trip} />
 
           <div className="flex items-center gap-2 mb-4 flex-wrap">
             <button onClick={() => setFilter("all")} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 999, border: `1px solid ${filter === "all" ? BRASS : MUTED + "55"}`, color: filter === "all" ? BRASS : MUTED, background: "transparent" }}>
