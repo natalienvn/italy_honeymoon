@@ -3,7 +3,7 @@ import {
   Plane, Plus, Trash2, ChevronUp, ChevronDown, MapPin,
   FolderPlus, Check, Sparkles, Loader2, Pencil, FileText,
   BedDouble, UtensilsCrossed, Ticket, Download, Upload, AlertTriangle, FileUp, X,
-  ArrowLeft, Tag, Bookmark, Folder
+  ArrowLeft, Tag, Bookmark, Folder, Search
 } from "lucide-react";
 
 // ---------- constants & small factories ----------
@@ -383,7 +383,150 @@ function GroupBadge({ group }) {
 
 // ---------- bookings (hotels / restaurants / experiences) ----------
 
-function BookingsPanel({ category, itemNoun, whenLabel, confirmLabel, entries, noteGroups, onAdd, onUpdate, onDelete, isOpen, onToggle }) {
+function SearchAndCompare({ groupLabel, itemNoun, onAddResult }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [results, setResults] = useState(null);
+  const [addedIdx, setAddedIdx] = useState({});
+
+  const PAPER = "#F3ECDD", PAPER_TEXT = "#2B2118", BRASS = "#C99A44", MUTED = "#9FA8B3", INK = "#1B2430";
+  const noun = (itemNoun || "option").toLowerCase();
+
+  const runSearch = async () => {
+    if (!query.trim() || loading) return;
+    setLoading(true);
+    setError(null);
+    setResults(null);
+    setAddedIdx({});
+    try {
+      const res = await fetch("/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: query.trim(), category: itemNoun, place: groupLabel }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
+      const list = Array.isArray(json.results) ? json.results : [];
+      if (list.length === 0) {
+        setError(`Didn't find good options for that \u2014 try a broader or more specific search.`);
+        setLoading(false);
+        return;
+      }
+      setResults(list);
+    } catch (err) {
+      setError((err && err.message) || "Search failed \u2014 try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mb-3">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity"
+        style={{ fontSize: 12, color: "#F3ECDD", fontWeight: 500 }}
+      >
+        <Search size={13} /> Search &amp; compare {noun}s in {groupLabel}
+        {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+      {open && (
+        <div className="mt-2" style={{ background: "rgba(0,0,0,0.18)", borderRadius: 10, padding: 12 }}>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") runSearch();
+              }}
+              placeholder={`e.g. "boutique ${noun}s near the center, under $250/night"`}
+              className="flex-1 outline-none text-sm"
+              style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 8, padding: "8px 10px", minWidth: 200 }}
+            />
+            <button
+              onClick={runSearch}
+              disabled={!query.trim() || loading}
+              className="flex items-center gap-1.5"
+              style={{
+                fontSize: 12.5, fontWeight: 500, color: INK, background: BRASS, borderRadius: 8, padding: "8px 14px",
+                opacity: !query.trim() || loading ? 0.5 : 1, cursor: !query.trim() || loading ? "default" : "pointer",
+              }}
+            >
+              {loading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+              {loading ? "Searching\u2026" : "Search"}
+            </button>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 mb-2" style={{ background: "#B5533C", color: "#F3ECDD", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
+              <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {results && (
+            <div className="flex flex-col gap-2">
+              {results.map((r, i) => (
+                <div key={i} style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 8, padding: 12 }}>
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="fx-fraunces" style={{ fontSize: 14.5, fontWeight: 600, fontStyle: "italic" }}>{r.name || "Untitled"}</div>
+                    <button
+                      onClick={() => {
+                        onAddResult(r);
+                        setAddedIdx((a) => ({ ...a, [i]: true }));
+                      }}
+                      disabled={!!addedIdx[i]}
+                      className="flex items-center gap-1 shrink-0"
+                      style={{ fontSize: 11, fontWeight: 500, color: INK, background: BRASS, borderRadius: 6, padding: "4px 8px", opacity: addedIdx[i] ? 0.5 : 1 }}
+                    >
+                      {addedIdx[i] ? <Check size={11} /> : <Plus size={11} />} {addedIdx[i] ? "Added" : "Add"}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap" style={{ fontSize: 11, color: "#8A7B5C" }}>
+                    {r.priceRange && <span>{r.priceRange}</span>}
+                    {r.rating && <span>{r.priceRange ? "\u00b7 " : ""}{r.rating}</span>}
+                  </div>
+                  {r.summary && <p style={{ fontSize: 12.5, marginBottom: 8, lineHeight: 1.4 }}>{r.summary}</p>}
+                  <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                    {Array.isArray(r.pros) && r.pros.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 10, color: "#4B5D3A", fontWeight: 600, marginBottom: 2 }}>PROS</div>
+                        <ul style={{ fontSize: 11.5, paddingLeft: 14, margin: 0 }}>
+                          {r.pros.map((p, pi) => (
+                            <li key={pi}>{p}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {Array.isArray(r.cons) && r.cons.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 10, color: "#B5533C", fontWeight: 600, marginBottom: 2 }}>CONS</div>
+                        <ul style={{ fontSize: 11.5, paddingLeft: 14, margin: 0 }}>
+                          {r.cons.map((c, ci) => (
+                            <li key={ci}>{c}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                  {r.sourceUrl && (
+                    <a href={r.sourceUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10.5, color: "#8A7B5C", marginTop: 6, display: "inline-block" }}>
+                      Source &rarr;
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BookingsPanel({ category, itemNoun, whenLabel, confirmLabel, entries, noteGroups, onAdd, onUpdate, onDelete, onAddFromSearch, isOpen, onToggle }) {
   const PAPER = "#F3ECDD", PAPER_TEXT = "#2B2118";
   return (
     <div>
@@ -392,6 +535,7 @@ function BookingsPanel({ category, itemNoun, whenLabel, confirmLabel, entries, n
         return (
           <div key={group.id} className="mb-9" style={{ borderTop: `1px solid ${group.color}33`, paddingTop: 18 }}>
             <GroupBadge group={group} />
+            <SearchAndCompare groupLabel={group.label} itemNoun={itemNoun} onAddResult={(r) => onAddFromSearch(category, group.id, r)} />
             {groupEntries.length > 0 && (
               <div className="flex flex-col gap-2 mb-3">
                 {groupEntries.map((b) => {
@@ -895,6 +1039,29 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
     updateTrip((t) => setScopedBookings(t, scope, (entries) => entries.map((b) => (b.id === id ? { ...b, [field]: val } : b))));
   const deleteBooking = (scope, id) => updateTrip((t) => setScopedBookings(t, scope, (entries) => entries.filter((b) => b.id !== id)));
 
+  const addBookingFromSearch = (scope, region, result) => {
+    const notesParts = [];
+    if (result.summary) notesParts.push(result.summary);
+    if (result.priceRange) notesParts.push(`Price: ${result.priceRange}`);
+    if (Array.isArray(result.pros) && result.pros.length) notesParts.push(`Pros: ${result.pros.join(", ")}`);
+    if (Array.isArray(result.cons) && result.cons.length) notesParts.push(`Cons: ${result.cons.join(", ")}`);
+    if (result.rating) notesParts.push(`Rating: ${result.rating}`);
+    if (result.sourceUrl) notesParts.push(`Source: ${result.sourceUrl}`);
+    updateTrip((t) =>
+      setScopedBookings(t, scope, (entries) => [
+        ...entries,
+        {
+          id: uid(),
+          name: result.name || "",
+          region,
+          when: "",
+          confirmation: "",
+          notes: notesParts.join("\n\n"),
+        },
+      ])
+    );
+  };
+
   const addBookingCategory = () => {
     const newId = uid();
     updateTrip((t) => ({ ...t, bookingCategories: [...(t.bookingCategories || []), { id: newId, name: "New category", entries: [] }] }));
@@ -1351,6 +1518,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
                   onAdd={addBooking}
                   onUpdate={updateBooking}
                   onDelete={deleteBooking}
+                  onAddFromSearch={addBookingFromSearch}
                   isOpen={isSectionOpen}
                   onToggle={toggleSection}
                 />
@@ -1362,6 +1530,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
         <BookingsPanel
           category="hotels" itemNoun="Hotel" whenLabel="Check-in \u2013 check-out" confirmLabel="Confirmation #"
           entries={trip.bookings.hotels} noteGroups={noteGroups} onAdd={addBooking} onUpdate={updateBooking} onDelete={deleteBooking}
+          onAddFromSearch={addBookingFromSearch}
           isOpen={isSectionOpen} onToggle={toggleSection}
         />
       )}
@@ -1369,6 +1538,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
         <BookingsPanel
           category="restaurants" itemNoun="Restaurant" whenLabel="Date & time" confirmLabel="Reservation #"
           entries={trip.bookings.restaurants} noteGroups={noteGroups} onAdd={addBooking} onUpdate={updateBooking} onDelete={deleteBooking}
+          onAddFromSearch={addBookingFromSearch}
           isOpen={isSectionOpen} onToggle={toggleSection}
         />
       )}
@@ -1376,6 +1546,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
         <BookingsPanel
           category="experiences" itemNoun="Experience" whenLabel="Date & time" confirmLabel="Confirmation #"
           entries={trip.bookings.experiences} noteGroups={noteGroups} onAdd={addBooking} onUpdate={updateBooking} onDelete={deleteBooking}
+          onAddFromSearch={addBookingFromSearch}
           isOpen={isSectionOpen} onToggle={toggleSection}
         />
       )}

@@ -55,6 +55,21 @@ of a trip. Notes, bookings, and days can all be tagged to a destination, plus
 two built-in groups that are always there: **General** (trip-wide notes not
 tied to one place) and **Travel** (for transit days, like a flight day).
 
+## Searching & comparing options
+
+Inside Hotels, Restaurants, Experiences, or any custom booking category, each
+destination group has a "Search & compare" toggle. Type something like
+"boutique hotels near the Duomo under $250/night" and Claude searches the web
+and returns a short list with price range, rating, a summary, and pros/cons
+pulled from what it actually finds \u2014 nothing invented. Click "Add" on any
+result to drop it straight into that category, pre-filled.
+
+This uses live web search through the Anthropic API (the same
+`ANTHROPIC_API_KEY` as everything else), which may have a small per-search
+cost on your Anthropic account depending on your plan \u2014 check
+[Anthropic's pricing](https://www.anthropic.com/pricing) if that matters to
+you. It's not called unless you actually run a search.
+
 ## Importing existing bookings
 
 The **Import** tab (inside a trip) lets you paste text or upload a file, and
