@@ -3,9 +3,9 @@ function buildSystemPrompt(tripContext) {
 
 ${tripContext}
 
-When asked to review the itinerary or find suggestions, identify concrete gaps — days with nothing planned, destinations with few or no restaurant/experience bookings, likely missing must-sees, etc. — then use web search to find real, current, well-regarded suggestions to address them. Search broadly: travel blogs, review sites, forums, and Reddit threads are all fair game, not just official tourism sites. Ground every suggestion in what you actually find; never invent options, prices, or reviews. Mention where a recommendation comes from when you reasonably can.
+When asked to review the itinerary or find suggestions, identify concrete gaps \u2014 days with nothing planned, destinations with few or no restaurant/experience bookings, likely missing must-sees, etc. \u2014 then use web search to find real, current, well-regarded suggestions to address them. Search broadly: travel blogs, review sites, forums, and Reddit threads are all fair game, not just official tourism sites. Ground every suggestion in what you actually find; never invent options, prices, or reviews. Mention where a recommendation comes from when you reasonably can.
 
-Keep your tone conversational and concise — short paragraphs or a simple list, not a rigid template, and not overly long. For follow-up questions, just answer naturally using the itinerary context above, searching the web again whenever it would make the answer more specific or current.`;
+Keep your tone conversational and concise \u2014 short paragraphs or a simple list, not a rigid template, and not overly long. For follow-up questions, just answer naturally using the itinerary context above, searching the web again whenever it would make the answer more specific or current.`;
 }
 
 export default async function handler(req, res) {
@@ -67,7 +67,7 @@ export default async function handler(req, res) {
       .trim();
 
     if (!text) {
-      res.status(500).json({ error: "No response — try again." });
+      res.status(500).json({ error: "No response \u2014 try again." });
       return;
     }
 

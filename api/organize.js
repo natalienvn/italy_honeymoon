@@ -7,7 +7,7 @@ This day currently has these columns: ${labelList}.
 
 Read the notes and decide which single column each activity or item belongs in, from that exact list. If something genuinely doesn't fit any of them, put it under a column called "Notes" instead (even though "Notes" isn't one of the given columns).
 
-For each column that ends up with content, write it as one or more short lines of text, one per activity. Start a line with a time if one is stated or clearly implied, formatted like "9:00 AM — activity description". If no time applies, just write the activity description on its own line.
+For each column that ends up with content, write it as one or more short lines of text, one per activity. Start a line with a time if one is stated or clearly implied, formatted like "9:00 AM \u2014 activity description". If no time applies, just write the activity description on its own line.
 
 Respond with ONLY a JSON object (no markdown fences, no commentary) in this exact shape:
 {
