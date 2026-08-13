@@ -23,17 +23,16 @@ const TABS = [
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const it = (text) => ({ id: uid(), text, checked: false });
-const dayItem = (time, text) => ({ id: uid(), time: time || "", text: text || "", checked: false });
-const daySection = (title, items) => ({ id: uid(), title, items: items || [] });
-const DEFAULT_DAY_SECTION_TITLES = ["Hotel", "Restaurants", "Experiences", "Sights", "Travel"];
-const day = (date, region, plan) => ({
+const DEFAULT_DAY_COLUMN_LABELS = ["Hotel", "Restaurants", "Experiences", "Sights", "Travel"];
+const dayColumn = (label) => ({ id: uid(), label });
+const emptyCells = (columns) => Object.fromEntries((columns || []).map((c) => [c.id, ""]));
+const day = (date, region, plan, columns) => ({
   id: uid(),
   date,
   region,
   plan,
   notes: "",
-  organized: null,
-  sections: DEFAULT_DAY_SECTION_TITLES.map((t) => daySection(t)),
+  cells: emptyCells(columns),
 });
 const list = (title, region, items) => ({ id: uid(), title, region, items });
 const booking = (region) => ({ id: uid(), name: "", region: region || "general", when: "", confirmation: "", notes: "" });
@@ -45,12 +44,14 @@ const defaultFlights = () => ({
 });
 
 function makeTrip(name, dates) {
+  const dayColumns = DEFAULT_DAY_COLUMN_LABELS.map((l) => dayColumn(l));
   return {
     id: uid(),
     name: name || "New trip",
     dates: dates || "",
     legs: [],
     flights: defaultFlights(),
+    dayColumns,
     days: [],
     sections: [],
     bookings: { hotels: [], restaurants: [], experiences: [] },
@@ -64,6 +65,7 @@ function makeFolder(name) {
 }
 
 function makeItalyTrip() {
+  const dayColumns = DEFAULT_DAY_COLUMN_LABELS.map((l) => dayColumn(l));
   return {
     id: "italy-trip",
     name: "Italy",
@@ -79,24 +81,25 @@ function makeItalyTrip() {
       retDate: "Sat, Nov 21, 2026", retTime: "1:00 PM", retRoute: "FCO \u2192 JFK",
       retArrTime: "5:02 PM",
     },
+    dayColumns,
     days: [
-      day("11/5", "travel", "Travel \u2014 overnight (red-eye) flight, ~8.5 hrs"),
-      day("11/6", "rome", "Arrive Rome AM \u2014 chill day, food day"),
-      day("11/7", "rome", "Rome \u2014 museum day"),
-      day("11/8", "rome", "Rome \u2014 open"),
-      day("11/9", "rome", "Rome \u2014 possible Naples/Pompeii day trip"),
-      day("11/10", "rome", "Rome \u2014 depart AM or evening for Siena/Chiusi/Sarteano by train, rent a car"),
-      day("11/11", "tuscany", "Tuscany day 1"),
-      day("11/12", "tuscany", "Tuscany day 2"),
-      day("11/13", "tuscany", "Tuscany day 3"),
-      day("11/14", "tuscany", "Tuscany day 4"),
-      day("11/15", "tuscany", "Tuscany day 5"),
-      day("11/16", "florence", "Arrive Florence \u2014 Florence day 1"),
-      day("11/17", "florence", "Florence day 2"),
-      day("11/18", "florence", "Florence day 3"),
-      day("11/19", "florence", "Florence day 4"),
-      day("11/20", "florence", "Florence day 5 \u2014 depart PM for Rome"),
-      day("11/21", "rome", "Rome \u2014 final day, departure flight home"),
+      day("11/5", "travel", "Travel \u2014 overnight (red-eye) flight, ~8.5 hrs", dayColumns),
+      day("11/6", "rome", "Arrive Rome AM \u2014 chill day, food day", dayColumns),
+      day("11/7", "rome", "Rome \u2014 museum day", dayColumns),
+      day("11/8", "rome", "Rome \u2014 open", dayColumns),
+      day("11/9", "rome", "Rome \u2014 possible Naples/Pompeii day trip", dayColumns),
+      day("11/10", "rome", "Rome \u2014 depart AM or evening for Siena/Chiusi/Sarteano by train, rent a car", dayColumns),
+      day("11/11", "tuscany", "Tuscany day 1", dayColumns),
+      day("11/12", "tuscany", "Tuscany day 2", dayColumns),
+      day("11/13", "tuscany", "Tuscany day 3", dayColumns),
+      day("11/14", "tuscany", "Tuscany day 4", dayColumns),
+      day("11/15", "tuscany", "Tuscany day 5", dayColumns),
+      day("11/16", "florence", "Arrive Florence \u2014 Florence day 1", dayColumns),
+      day("11/17", "florence", "Florence day 2", dayColumns),
+      day("11/18", "florence", "Florence day 3", dayColumns),
+      day("11/19", "florence", "Florence day 4", dayColumns),
+      day("11/20", "florence", "Florence day 5 \u2014 depart PM for Rome", dayColumns),
+      day("11/21", "rome", "Rome \u2014 final day, departure flight home", dayColumns),
     ],
     sections: [
       list("Top 5 must-sees", "rome", [it("Colosseum, Roman Forum and Palatine Hill"), it("Vatican Museums, Sistine Chapel and St. Peter's"), it("Pantheon"), it("Trevi Fountain"), it("Spanish Steps"), it("Maybe: Pompeii")]),
@@ -133,6 +136,11 @@ function makeItalyTrip() {
 const STORAGE_KEY = "travel-planner-v1";
 const LEGACY_STORAGE_KEY = "italy-trip-planner-v1";
 
+// --- Legacy shapes, kept only so old saved data can be migrated forward. ---
+const LEGACY_dayItem = (time, text) => ({ id: uid(), time: time || "", text: text || "", checked: false });
+const LEGACY_daySection = (title, items) => ({ id: uid(), title, items: items || [] });
+const LEGACY_DEFAULT_DAY_SECTION_TITLES = ["Hotel", "Restaurants", "Experiences", "Sights", "Travel"];
+
 function migrateDayShape(d) {
   const hasSections = Array.isArray(d.sections) && d.sections.length > 0;
   let sections;
@@ -143,7 +151,7 @@ function migrateDayShape(d) {
       items: (s.items || []).map((i) => ({ id: i.id || uid(), time: i.time || "", text: i.text || "", checked: !!i.checked })),
     }));
   } else {
-    sections = DEFAULT_DAY_SECTION_TITLES.map((t) => daySection(t));
+    sections = LEGACY_DEFAULT_DAY_SECTION_TITLES.map((t) => LEGACY_daySection(t));
     // Preserve any pre-existing freeform notes so this migration can never lose data --
     // it just surfaces as a section the user can review and redistribute if they want.
     const legacyText = ((d.organized || d.notes || "") + "").trim();
@@ -153,7 +161,7 @@ function migrateDayShape(d) {
         .map((l) => l.replace(/^[-*]\s*/, "").trim())
         .filter(Boolean);
       if (lines.length) {
-        sections.push(daySection("Notes (from before)", lines.map((l) => dayItem("", l))));
+        sections.push(LEGACY_daySection("Notes (from before)", lines.map((l) => LEGACY_dayItem("", l))));
       }
     }
   }
@@ -168,17 +176,83 @@ function migrateDayShape(d) {
   };
 }
 
+// Converts the (legacy) per-day-sections shape into trip-wide spreadsheet
+// columns + per-day cells. Every unique section title across every day
+// becomes a column (defaults first, in order, then anything else found) so
+// nothing typed under a custom or one-off section title is ever dropped.
+function sectionedDaysToSpreadsheet(sectionedDays) {
+  const colOrder = [];
+  const keyToId = {};
+  const ensureColumn = (rawTitle) => {
+    const title = (rawTitle || "Notes").trim() || "Notes";
+    const key = title.toLowerCase();
+    if (!keyToId[key]) {
+      const id = uid();
+      keyToId[key] = id;
+      colOrder.push({ id, label: title });
+    }
+    return keyToId[key];
+  };
+  LEGACY_DEFAULT_DAY_SECTION_TITLES.forEach((t) => ensureColumn(t));
+  sectionedDays.forEach((d) => (d.sections || []).forEach((s) => ensureColumn(s.title)));
+
+  const flatten = (items) =>
+    (items || [])
+      .map((i) => {
+        const t = (i.time || "").trim();
+        const txt = (i.text || "").trim();
+        if (!t && !txt) return "";
+        return t ? `${t} \u2014 ${txt}` : txt;
+      })
+      .filter(Boolean)
+      .join("\n");
+
+  const days = sectionedDays.map((d) => {
+    const cells = {};
+    colOrder.forEach((c) => (cells[c.id] = ""));
+    (d.sections || []).forEach((s) => {
+      const id = keyToId[(s.title || "Notes").trim().toLowerCase() || "notes"];
+      const text = flatten(s.items);
+      if (text) cells[id] = cells[id] ? `${cells[id]}\n${text}` : text;
+    });
+    return { id: d.id, date: d.date, region: d.region, plan: d.plan, notes: d.notes || "", cells };
+  });
+
+  return { columns: colOrder, days };
+}
+
+
 function migrateTripShape(t) {
   const legs = Array.isArray(t.legs) ? t.legs : [];
   const validIds = [...legs.map((l) => l.id), "general"];
   const fixSections = (secs) => (secs || []).map((s) => ({ ...s, region: validIds.includes(s.region) ? s.region : "general" }));
+
+  let dayColumns, days;
+  if (Array.isArray(t.dayColumns)) {
+    // Already the spreadsheet shape -- keep columns as-is, just make sure every day has a cell for each.
+    dayColumns = t.dayColumns.map((c) => ({ id: c.id || uid(), label: c.label || "Column" }));
+    const colIds = dayColumns.map((c) => c.id);
+    days = (t.days || []).map((d) => {
+      const cells = {};
+      colIds.forEach((id) => (cells[id] = (d.cells && d.cells[id]) || ""));
+      return { id: d.id || uid(), date: d.date || "", region: d.region || "travel", plan: d.plan || "", notes: d.notes || "", cells };
+    });
+  } else {
+    // Legacy shape (per-day sections, or even older raw notes) -- convert to spreadsheet columns.
+    const sectioned = (t.days || []).map(migrateDayShape);
+    const converted = sectionedDaysToSpreadsheet(sectioned);
+    dayColumns = converted.columns;
+    days = converted.days;
+  }
+
   return {
     id: t.id || uid(),
     name: t.name || "Untitled trip",
     dates: t.dates || "",
     legs,
     flights: { ...defaultFlights(), ...(t.flights || {}) },
-    days: (t.days || []).map(migrateDayShape),
+    dayColumns,
+    days,
     sections: fixSections(t.sections),
     bookings: {
       hotels: (t.bookings && t.bookings.hotels) || [],
@@ -967,14 +1041,9 @@ function summarizeTrip(trip) {
     trip.days.forEach((d, i) => {
       const parts = [];
       if (d.plan) parts.push(d.plan);
-      (d.sections || []).forEach((s) => {
-        if (s.items && s.items.length) {
-          const entries = s.items
-            .map((it) => `${it.time ? it.time + " " : ""}${it.text}`.trim())
-            .filter(Boolean)
-            .join("; ");
-          if (entries) parts.push(`${s.title}: ${entries}`);
-        }
+      (trip.dayColumns || []).forEach((col) => {
+        const text = (d.cells && d.cells[col.id] || "").trim();
+        if (text) parts.push(`${col.label}: ${text.replace(/\n/g, "; ")}`);
       });
       const plan = parts.length ? parts.join(" | ") : "(nothing planned yet)";
       lines.push(`  Day ${i + 1}, ${d.date || "date TBD"} (${legLabel(d.region)}): ${plan}`);
@@ -1145,6 +1214,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
   const [sectionOpen, setSectionOpen] = useState({});
   const [tab, setTab] = useState("itinerary");
   const [showAddTabMenu, setShowAddTabMenu] = useState(false);
+  const [quickFillDayId, setQuickFillDayId] = useState(null);
 
   const dayRegions = [...trip.legs, TRAVEL_LEG];
   const noteGroups = [GENERAL_LEG, ...trip.legs];
@@ -1186,9 +1256,11 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
     }));
   };
 
-  const addDay = () => updateTrip((t) => ({ ...t, days: [...t.days, day("", "travel", "")] }));
+  const addDay = () => updateTrip((t) => ({ ...t, days: [...t.days, day("", "travel", "", t.dayColumns)] }));
   const updateDay = (id, field, val) =>
     updateTrip((t) => ({ ...t, days: t.days.map((x) => (x.id === id ? { ...x, [field]: val } : x)) }));
+  const updateDayCell = (dayId, columnId, val) =>
+    updateTrip((t) => ({ ...t, days: t.days.map((d) => (d.id === dayId ? { ...d, cells: { ...d.cells, [columnId]: val } } : d)) }));
   const deleteDay = (id) => updateTrip((t) => ({ ...t, days: t.days.filter((x) => x.id !== id) }));
   const moveDay = (id, dir) =>
     updateTrip((t) => {
@@ -1200,24 +1272,25 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
       return { ...t, days: arr };
     });
 
-  const updateDaySections = (dayId, updater) =>
-    updateTrip((t) => ({ ...t, days: t.days.map((d) => (d.id === dayId ? { ...d, sections: updater(d.sections) } : d)) }));
-  const addDaySection = (dayId) => updateDaySections(dayId, (secs) => [...secs, daySection("New section")]);
-  const updateDaySectionTitle = (dayId, sectionId, title) =>
-    updateDaySections(dayId, (secs) => secs.map((s) => (s.id === sectionId ? { ...s, title } : s)));
-  const deleteDaySection = (dayId, sectionId) => updateDaySections(dayId, (secs) => secs.filter((s) => s.id !== sectionId));
-  const addDayItem = (dayId, sectionId) =>
-    updateDaySections(dayId, (secs) => secs.map((s) => (s.id === sectionId ? { ...s, items: [...s.items, dayItem("", "")] } : s)));
-  const updateDayItem = (dayId, sectionId, itemId, field, val) =>
-    updateDaySections(dayId, (secs) =>
-      secs.map((s) => (s.id === sectionId ? { ...s, items: s.items.map((i) => (i.id === itemId ? { ...i, [field]: val } : i)) } : s))
-    );
-  const toggleDayItem = (dayId, sectionId, itemId) =>
-    updateDaySections(dayId, (secs) =>
-      secs.map((s) => (s.id === sectionId ? { ...s, items: s.items.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i)) } : s))
-    );
-  const deleteDayItem = (dayId, sectionId, itemId) =>
-    updateDaySections(dayId, (secs) => secs.map((s) => (s.id === sectionId ? { ...s, items: s.items.filter((i) => i.id !== itemId) } : s)));
+  const addDayColumn = () =>
+    updateTrip((t) => {
+      const col = dayColumn("New column");
+      return { ...t, dayColumns: [...t.dayColumns, col], days: t.days.map((d) => ({ ...d, cells: { ...d.cells, [col.id]: "" } })) };
+    });
+  const updateDayColumnLabel = (columnId, label) =>
+    updateTrip((t) => ({ ...t, dayColumns: t.dayColumns.map((c) => (c.id === columnId ? { ...c, label } : c)) }));
+  const deleteDayColumn = (columnId) => {
+    if (!window.confirm("Delete this column from every day? This can't be undone.")) return;
+    updateTrip((t) => ({
+      ...t,
+      dayColumns: t.dayColumns.filter((c) => c.id !== columnId),
+      days: t.days.map((d) => {
+        const cells = { ...d.cells };
+        delete cells[columnId];
+        return { ...d, cells };
+      }),
+    }));
+  };
 
   const getScopedSections = (t, scope) =>
     scope === "notes" ? t.sections : ((t.customTabs || []).find((ct) => ct.id === scope) || {}).sections || [];
@@ -1360,13 +1433,11 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
     });
   };
 
-  const dayUi = (id) => ui[id] || { expanded: false, loading: false, error: null };
+  const dayUi = (id) => ui[id] || { loading: false, error: null };
   const patchUi = (id, patch) => setUi((prev) => ({ ...prev, [id]: { ...dayUi(id), ...patch } }));
 
   const isSectionOpen = (id) => sectionOpen[id] !== false;
   const toggleSection = (id) => setSectionOpen((prev) => ({ ...prev, [id]: !isSectionOpen(id) }));
-
-  const toggleExpand = (d) => patchUi(d.id, { expanded: !dayUi(d.id).expanded, error: null });
 
   const organizeDay = async (id) => {
     const d = trip.days.find((x) => x.id === id);
@@ -1376,31 +1447,48 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
       const res = await fetch("/api/organize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: d.notes, sectionTitles: d.sections.map((s) => s.title) }),
+        body: JSON.stringify({ notes: d.notes, columnLabels: trip.dayColumns.map((c) => c.label) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
-      const placements = Array.isArray(json.sections) ? json.sections : [];
+      const placements = Array.isArray(json.cells) ? json.cells : [];
       if (placements.length === 0) throw new Error("Didn't find anything to organize \u2014 try adding more detail.");
-      updateTrip((t) => ({
-        ...t,
-        days: t.days.map((x) => {
-          if (x.id !== id) return x;
-          let nextSections = [...x.sections];
-          placements.forEach((p) => {
-            const newItems = (Array.isArray(p.items) ? p.items : []).map((it) => dayItem(it.time || "", it.text || ""));
-            if (newItems.length === 0) return;
-            const idx = nextSections.findIndex((s) => s.title.toLowerCase() === String(p.title || "").toLowerCase());
-            if (idx >= 0) {
-              nextSections = nextSections.map((s, i) => (i === idx ? { ...s, items: [...s.items, ...newItems] } : s));
-            } else {
-              nextSections = [...nextSections, daySection(p.title || "Notes", newItems)];
-            }
-          });
-          return { ...x, sections: nextSections };
-        }),
-      }));
-      patchUi(id, { loading: false, expanded: true });
+      updateTrip((t) => {
+        let nextColumns = [...t.dayColumns];
+        const cellUpdates = {};
+        placements.forEach((p) => {
+          const text = String(p.text || "").trim();
+          if (!text) return;
+          const idx = nextColumns.findIndex((c) => c.label.toLowerCase() === String(p.title || "").toLowerCase());
+          let colId;
+          if (idx >= 0) {
+            colId = nextColumns[idx].id;
+          } else {
+            const col = dayColumn(p.title || "Notes");
+            nextColumns = [...nextColumns, col];
+            colId = col.id;
+          }
+          cellUpdates[colId] = cellUpdates[colId] ? `${cellUpdates[colId]}\n${text}` : text;
+        });
+        const addedColumnIds = nextColumns.filter((c) => !t.dayColumns.some((oc) => oc.id === c.id)).map((c) => c.id);
+        return {
+          ...t,
+          dayColumns: nextColumns,
+          days: t.days.map((x) => {
+            const baseCells = { ...x.cells };
+            addedColumnIds.forEach((cid) => {
+              if (!(cid in baseCells)) baseCells[cid] = "";
+            });
+            if (x.id !== id) return { ...x, cells: baseCells };
+            const cells = { ...baseCells };
+            Object.keys(cellUpdates).forEach((cid) => {
+              cells[cid] = cells[cid] ? `${cells[cid]}\n${cellUpdates[cid]}` : cellUpdates[cid];
+            });
+            return { ...x, cells };
+          }),
+        };
+      });
+      patchUi(id, { loading: false });
     } catch (err) {
       patchUi(id, { loading: false, error: (err && err.message) || "Couldn't organize that \u2014 try again." });
     }
@@ -1598,128 +1686,142 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
             ))}
           </div>
 
-          <div className="flex flex-col gap-2 mb-3">
-            {filteredDays.map((d) => {
-              const realIdx = trip.days.findIndex((x) => x.id === d.id);
-              const region = regionOf(d.region);
-              const u = dayUi(d.id);
-              const filledSections = d.sections.filter((s) => s.items.length > 0).length;
-              const dotColor = filledSections > 0 ? BRASS : "transparent";
-              return (
-                <div key={d.id} className="fx-row" style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 10, borderLeft: `4px solid ${region.color}` }}>
-                  <div className="flex items-start gap-3" style={{ padding: "10px 12px 8px 12px" }}>
-                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#8A7B5C", width: 34, textAlign: "center", paddingTop: 3, flexShrink: 0 }}>
-                      {String(realIdx + 1).padStart(2, "0")}
-                    </div>
-                    <div style={{ width: 58, flexShrink: 0, paddingTop: 2 }}>
-                      <Field value={d.date} onChange={(v) => updateDay(d.id, "date", v)} placeholder="date" mono className="text-sm font-medium" />
-                    </div>
-                    <select value={d.region} onChange={(e) => updateDay(d.id, "region", e.target.value)} style={{ fontSize: 11, background: "transparent", color: region.color, border: "none", fontWeight: 600, width: 74, flexShrink: 0, paddingTop: 3, cursor: "pointer" }}>
-                      {dayRegions.map((r) => (
-                        <option key={r.id} value={r.id} style={{ color: "#2B2118" }}>{r.label}</option>
-                      ))}
-                    </select>
-                    <textarea value={d.plan} onChange={(e) => updateDay(d.id, "plan", e.target.value)} placeholder="Quick summary" rows={1} className="flex-1 bg-transparent outline-none resize-none text-sm" style={{ color: PAPER_TEXT, lineHeight: 1.4, paddingTop: 2 }} />
-                    <div className="fx-actions flex items-center gap-0.5" style={{ paddingTop: 1 }}>
-                      <IconBtn title="Move up" onClick={() => moveDay(d.id, -1)}><ChevronUp size={15} color="#8A7B5C" /></IconBtn>
-                      <IconBtn title="Move down" onClick={() => moveDay(d.id, 1)}><ChevronDown size={15} color="#8A7B5C" /></IconBtn>
-                      <IconBtn title="Delete day" danger onClick={() => deleteDay(d.id)}><Trash2 size={14} color="#B5533C" /></IconBtn>
-                    </div>
-                  </div>
-
-                  <div style={{ padding: "6px 12px 10px 12px", borderTop: "1px solid #8A7B5C22" }}>
-                    <button onClick={() => toggleExpand(d)} className="flex items-center gap-1.5" style={{ fontSize: 11.5, color: "#8A7B5C", fontWeight: 500 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-                      <FileText size={12} />
-                      Day details
-                      {u.expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                    </button>
-
-                    {u.expanded && (
-                      <div className="mt-2">
-                        <textarea
-                          value={d.notes || ""}
-                          onChange={(e) => updateDay(d.id, "notes", e.target.value)}
-                          placeholder="Brain-dump times, activities, reservations here, then Organize to sort them into the sections below."
-                          rows={2}
-                          className="w-full bg-transparent outline-none resize-none text-sm"
-                          style={{ color: PAPER_TEXT, lineHeight: 1.5, border: "1px dashed #8A7B5C55", borderRadius: 8, padding: "8px 10px", marginBottom: 6 }}
+          <div style={{ overflowX: "auto", borderRadius: 10, background: PAPER, marginBottom: 10 }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 780 }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #8A7B5C33" }}>
+                  <th style={{ padding: "7px 8px", fontSize: 10, color: "#8A7B5C", fontWeight: 600, textAlign: "center", width: 30 }}>#</th>
+                  <th style={{ padding: "7px 8px", fontSize: 10, color: "#8A7B5C", fontWeight: 600, textAlign: "left", width: 68 }}>DATE</th>
+                  <th style={{ padding: "7px 8px", fontSize: 10, color: "#8A7B5C", fontWeight: 600, textAlign: "left", width: 96 }}>WHERE</th>
+                  <th style={{ padding: "7px 8px", fontSize: 10, color: "#8A7B5C", fontWeight: 600, textAlign: "left", minWidth: 150 }}>SUMMARY</th>
+                  {trip.dayColumns.map((col) => (
+                    <th key={col.id} style={{ padding: "7px 8px", fontSize: 10, color: "#8A7B5C", fontWeight: 600, textAlign: "left", minWidth: 170 }}>
+                      <div className="flex items-center gap-1">
+                        <Field
+                          value={col.label}
+                          onChange={(v) => updateDayColumnLabel(col.id, v)}
+                          className="flex-1"
+                          style={{ fontSize: 10, fontWeight: 600, color: "#8A7B5C", textTransform: "uppercase" }}
                         />
-                        <div className="flex items-center gap-2 mb-3">
-                          <button
-                            onClick={() => organizeDay(d.id)}
-                            disabled={!(d.notes || "").trim() || u.loading}
-                            className="flex items-center gap-1.5"
-                            style={{
-                              fontSize: 12, fontWeight: 500, color: INK, background: BRASS, borderRadius: 8,
-                              padding: "6px 12px", opacity: !(d.notes || "").trim() || u.loading ? 0.5 : 1,
-                              cursor: !(d.notes || "").trim() || u.loading ? "default" : "pointer",
-                            }}
-                          >
-                            {u.loading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                            {u.loading ? "Organizing\u2026" : "Organize into sections"}
-                          </button>
-                        </div>
-                        {u.error && <p style={{ color: "#B5533C", fontSize: 11.5, marginBottom: 8 }}>{u.error}</p>}
-
-                        <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
-                          {d.sections.map((section) => (
-                            <div key={section.id} style={{ background: "rgba(0,0,0,0.05)", borderRadius: 8, padding: "8px 10px" }}>
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <Field
-                                  value={section.title}
-                                  onChange={(v) => updateDaySectionTitle(d.id, section.id, v)}
-                                  className="fx-fraunces flex-1"
-                                  style={{ fontSize: 12.5, fontWeight: 600, fontStyle: "italic", color: PAPER_TEXT }}
-                                />
-                                <button onClick={() => addDayItem(d.id, section.id)} title="Add item" aria-label="Add item" style={{ opacity: 0.55 }}>
-                                  <Plus size={12} color="#8A7B5C" />
-                                </button>
-                                <button onClick={() => deleteDaySection(d.id, section.id)} title="Delete section" aria-label="Delete section" style={{ opacity: 0.4 }}>
-                                  <Trash2 size={11} color="#B5533C" />
-                                </button>
-                              </div>
-                              {section.items.length === 0 && <p style={{ fontSize: 11, color: "#8A7B5C", fontStyle: "italic", margin: 0 }}>Nothing yet</p>}
-                              <div className="flex flex-col gap-1">
-                                {section.items.map((item) => (
-                                  <div key={item.id} className="flex items-start gap-1.5">
-                                    <Stamp checked={item.checked} onClick={() => toggleDayItem(d.id, section.id, item.id)} color={BRASS} />
-                                    <input
-                                      value={item.time}
-                                      onChange={(e) => updateDayItem(d.id, section.id, item.id, "time", e.target.value)}
-                                      placeholder="time"
-                                      className="outline-none bg-transparent"
-                                      style={{ width: 54, flexShrink: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: PAPER_TEXT, paddingTop: 3 }}
-                                    />
-                                    <AutoNote
-                                      value={item.text}
-                                      onChange={(v) => updateDayItem(d.id, section.id, item.id, "text", v)}
-                                      placeholder="Details"
-                                      className="flex-1"
-                                      style={{ fontSize: 12, color: PAPER_TEXT, textDecoration: item.checked ? "line-through" : "none", opacity: item.checked ? 0.55 : 1, paddingTop: 2 }}
-                                    />
-                                    <button onClick={() => deleteDayItem(d.id, section.id, item.id)} title="Delete" aria-label="Delete" style={{ opacity: 0.35, marginTop: 3 }}>
-                                      <Trash2 size={11} color="#B5533C" />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <button onClick={() => addDaySection(d.id)} className="flex items-center gap-1.5 opacity-55 hover:opacity-100 transition-opacity" style={{ fontSize: 11.5, color: "#8A7B5C" }}>
-                          <FolderPlus size={12} /> Add section
+                        <button onClick={() => deleteDayColumn(col.id)} title="Delete column" aria-label="Delete column" style={{ opacity: 0.4, flexShrink: 0 }}>
+                          <X size={10} color="#B5533C" />
                         </button>
                       </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                    </th>
+                  ))}
+                  <th style={{ padding: "7px 4px", width: 30 }}>
+                    <button onClick={addDayColumn} title="Add column" aria-label="Add column" style={{ opacity: 0.5 }}>
+                      <Plus size={13} color="#8A7B5C" />
+                    </button>
+                  </th>
+                  <th style={{ width: 76 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDays.map((d) => {
+                  const realIdx = trip.days.findIndex((x) => x.id === d.id);
+                  const region = regionOf(d.region);
+                  return (
+                    <tr key={d.id} style={{ borderBottom: "1px solid #8A7B5C1c" }}>
+                      <td style={{ padding: "6px 8px", fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: "#8A7B5C", textAlign: "center" }}>
+                        {String(realIdx + 1).padStart(2, "0")}
+                      </td>
+                      <td style={{ padding: "6px 8px", borderLeft: `4px solid ${region.color}` }}>
+                        <Field value={d.date} onChange={(v) => updateDay(d.id, "date", v)} placeholder="date" mono style={{ fontSize: 12.5, color: PAPER_TEXT }} />
+                      </td>
+                      <td style={{ padding: "6px 8px" }}>
+                        <select
+                          value={d.region}
+                          onChange={(e) => updateDay(d.id, "region", e.target.value)}
+                          style={{ fontSize: 11.5, background: "transparent", color: region.color, border: "none", fontWeight: 600, cursor: "pointer", width: "100%" }}
+                        >
+                          {dayRegions.map((r) => (
+                            <option key={r.id} value={r.id} style={{ color: "#2B2118" }}>{r.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td style={{ padding: "6px 8px" }}>
+                        <AutoNote value={d.plan} onChange={(v) => updateDay(d.id, "plan", v)} placeholder="Quick summary" style={{ fontSize: 12.5, color: PAPER_TEXT }} />
+                      </td>
+                      {trip.dayColumns.map((col) => (
+                        <td key={col.id} style={{ padding: "6px 8px", borderLeft: "1px solid #8A7B5C14" }}>
+                          <AutoNote
+                            value={(d.cells && d.cells[col.id]) || ""}
+                            onChange={(v) => updateDayCell(d.id, col.id, v)}
+                            placeholder="\u2014"
+                            style={{ fontSize: 12.5, color: PAPER_TEXT }}
+                          />
+                        </td>
+                      ))}
+                      <td />
+                      <td style={{ padding: "6px 4px" }}>
+                        <div className="fx-actions flex items-center gap-0.5">
+                          <IconBtn title="Move up" onClick={() => moveDay(d.id, -1)}><ChevronUp size={14} color="#8A7B5C" /></IconBtn>
+                          <IconBtn title="Move down" onClick={() => moveDay(d.id, 1)}><ChevronDown size={14} color="#8A7B5C" /></IconBtn>
+                          <IconBtn title="Delete day" danger onClick={() => deleteDay(d.id)}><Trash2 size={13} color="#B5533C" /></IconBtn>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <button onClick={addDay} className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity" style={{ fontSize: 12.5, color: PAPER, border: `1px dashed ${MUTED}66`, borderRadius: 8, padding: "8px 14px", width: "100%", justifyContent: "center" }}>
+          <button onClick={addDay} className="flex items-center gap-2 mb-5 opacity-70 hover:opacity-100 transition-opacity" style={{ fontSize: 12.5, color: PAPER, border: `1px dashed ${MUTED}66`, borderRadius: 8, padding: "8px 14px", width: "100%", justifyContent: "center" }}>
             <Plus size={14} /> Add a day
           </button>
+
+          {trip.days.length > 0 && (
+            <div style={{ background: "rgba(0,0,0,0.18)", borderRadius: 10, padding: 12 }}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <Sparkles size={13} color={BRASS} />
+                <span style={{ fontSize: 12.5, fontWeight: 500, color: PAPER }}>Quick-fill a day with AI</span>
+              </div>
+              <select
+                value={quickFillDayId && trip.days.some((x) => x.id === quickFillDayId) ? quickFillDayId : trip.days[0].id}
+                onChange={(e) => setQuickFillDayId(e.target.value)}
+                className="mb-2"
+                style={{ fontSize: 12, background: PAPER, color: PAPER_TEXT, border: "none", borderRadius: 6, padding: "6px 8px" }}
+              >
+                {trip.days.map((x, i) => (
+                  <option key={x.id} value={x.id}>
+                    Day {i + 1}{x.date ? ` \u2014 ${x.date}` : ""}
+                  </option>
+                ))}
+              </select>
+              {(() => {
+                const targetId = quickFillDayId && trip.days.some((x) => x.id === quickFillDayId) ? quickFillDayId : trip.days[0].id;
+                const targetDay = trip.days.find((x) => x.id === targetId);
+                const u = dayUi(targetId);
+                return (
+                  <>
+                    <textarea
+                      value={targetDay.notes || ""}
+                      onChange={(e) => updateDay(targetId, "notes", e.target.value)}
+                      placeholder="Brain-dump times, activities, reservations here, then Organize to sort them into that day's columns."
+                      rows={2}
+                      className="w-full bg-transparent outline-none resize-none text-sm"
+                      style={{ color: PAPER, lineHeight: 1.5, border: "1px dashed #F3ECDD44", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}
+                    />
+                    <button
+                      onClick={() => organizeDay(targetId)}
+                      disabled={!(targetDay.notes || "").trim() || u.loading}
+                      className="flex items-center gap-1.5"
+                      style={{
+                        fontSize: 12, fontWeight: 500, color: INK, background: BRASS, borderRadius: 8,
+                        padding: "6px 12px", opacity: !(targetDay.notes || "").trim() || u.loading ? 0.5 : 1,
+                        cursor: !(targetDay.notes || "").trim() || u.loading ? "default" : "pointer",
+                      }}
+                    >
+                      {u.loading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                      {u.loading ? "Organizing\u2026" : "Organize into that day"}
+                    </button>
+                    {u.error && <p style={{ color: "#E39B8C", fontSize: 11.5, marginTop: 6 }}>{u.error}</p>}
+                  </>
+                );
+              })()}
+            </div>
+          )}
         </>
       )}
 

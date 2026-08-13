@@ -57,8 +57,8 @@ tied to one place) and **Travel** (for transit days, like a flight day).
 
 ## Day structure
 
-Each day breaks down into editable sections \u2014 Hotel, Restaurants,
-Experiences, Sights, and Travel by default \u2014 and you can rename, delete, or
+Each day breaks down into editable sections — Hotel, Restaurants,
+Experiences, Sights, and Travel by default — and you can rename, delete, or
 add your own (click "+ Add section"). Every entry in a section has its own
 time field plus a details field, so you get real per-day timing instead of
 one big note.
@@ -72,11 +72,11 @@ section instead of getting lost.
 ## Suggestions & chat
 
 On the Itinerary tab, the **Suggestions** button opens a panel that reads
-your whole trip \u2014 destinations, every day's plan, and everything already
-booked \u2014 and can search the web broadly (review sites, travel blogs,
+your whole trip — destinations, every day's plan, and everything already
+booked — and can search the web broadly (review sites, travel blogs,
 Reddit threads, wherever) to point out gaps and suggest real options for
 them. You can also just type a question instead of running the full review
-("what's a good day trip from Siena?"), and keep chatting with follow-ups \u2014
+("what's a good day trip from Siena?"), and keep chatting with follow-ups —
 it remembers the conversation as you go.
 
 Same cost note as Search & compare above: this uses live web search through
@@ -89,12 +89,12 @@ Inside Hotels, Restaurants, Experiences, or any custom booking category, each
 destination group has a "Search & compare" toggle. Type something like
 "boutique hotels near the Duomo under $250/night" and Claude searches the web
 and returns a short list with price range, rating, a summary, and pros/cons
-pulled from what it actually finds \u2014 nothing invented. Click "Add" on any
+pulled from what it actually finds — nothing invented. Click "Add" on any
 result to drop it straight into that category, pre-filled.
 
 This uses live web search through the Anthropic API (the same
 `ANTHROPIC_API_KEY` as everything else), which may have a small per-search
-cost on your Anthropic account depending on your plan \u2014 check
+cost on your Anthropic account depending on your plan — check
 [Anthropic's pricing](https://www.anthropic.com/pricing) if that matters to
 you. It's not called unless you actually run a search.
 
