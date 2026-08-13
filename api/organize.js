@@ -1,22 +1,22 @@
-function buildSystemPrompt(columnLabels) {
-  const labels = Array.isArray(columnLabels) && columnLabels.length ? columnLabels : ["Hotel", "Restaurants", "Experiences", "Sights", "Travel"];
-  const labelList = labels.map((t) => `"${t}"`).join(", ");
-  return `You help sort a traveler's rough, freeform notes about a single day of a trip into that day's existing spreadsheet columns.
+function buildSystemPrompt(sectionTitles) {
+  const titles = Array.isArray(sectionTitles) && sectionTitles.length ? sectionTitles : ["Hotel", "Restaurants", "Experiences", "Sights", "Travel", "Notes"];
+  const titleList = titles.map((t) => `"${t}"`).join(", ");
+  return `You help sort a traveler's rough, freeform notes about a single day of a trip into structured sections.
 
-This day currently has these columns: ${labelList}.
+This day currently has these sections: ${titleList}.
 
-Read the notes and decide which single column each activity or item belongs in, from that exact list. If something genuinely doesn't fit any of them, put it under a column called "Notes" instead (even though "Notes" isn't one of the given columns).
+Read the notes and sort each activity or item into the single most appropriate section from that exact list. If something genuinely doesn't fit any of them, put it in a section called "Notes" instead (even though "Notes" isn't one of the given sections).
 
-For each column that ends up with content, write it as one or more short lines of text, one per activity. Start a line with a time if one is stated or clearly implied, formatted like "9:00 AM \u2014 activity description". If no time applies, just write the activity description on its own line.
+For each item, pull out a time if one is stated or clearly implied (formatted like "9:00 AM"), and a short description of the activity. If no time applies, leave time as "".
 
 Respond with ONLY a JSON object (no markdown fences, no commentary) in this exact shape:
 {
-  "cells": [
-    { "title": "<one of the exact column names given, or \\"Notes\\">", "text": "<one or more lines of text>" }
+  "sections": [
+    { "title": "<one of the exact section names given, or \"Notes\">", "items": [{ "time": "", "text": "" }] }
   ]
 }
 
-Only include columns that end up with content. Do not invent activities that weren't mentioned or reasonably implied by the notes.`;
+Only include sections that end up with at least one item. Do not invent activities that weren't mentioned or reasonably implied by the notes.`;
 }
 
 export default async function handler(req, res) {
@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { notes, columnLabels } = req.body || {};
+  const { notes, sectionTitles } = req.body || {};
   if (!notes || typeof notes !== "string" || !notes.trim()) {
     res.status(400).json({ error: "Missing notes" });
     return;
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "claude-sonnet-5",
         max_tokens: 1500,
-        system: buildSystemPrompt(columnLabels),
+        system: buildSystemPrompt(sectionTitles),
         messages: [{ role: "user", content: notes }],
       }),
     });
@@ -76,8 +76,8 @@ export default async function handler(req, res) {
       return;
     }
 
-    const cells = Array.isArray(parsed.cells) ? parsed.cells : [];
-    res.status(200).json({ cells });
+    const sections = Array.isArray(parsed.sections) ? parsed.sections : [];
+    res.status(200).json({ sections });
   } catch (err) {
     res.status(500).json({ error: "Request to Anthropic failed" });
   }
