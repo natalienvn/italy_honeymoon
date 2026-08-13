@@ -32,7 +32,7 @@ Respond with ONLY a single JSON object, no markdown fences, no commentary, match
 Rules:
 - Only include items you can actually find evidence for. Never invent bookings.
 - If a category has nothing, return an empty array for it.
-- "route" for flights should look like "JFK \u2192 CDG".
+- "route" for flights should look like "JFK → CDG".
 - ${regionGuide}
 - "notes" can include address, phone, or any other detail worth keeping; leave it "" if there's nothing extra.
 - Leave any field "" if it isn't present in the source rather than guessing.

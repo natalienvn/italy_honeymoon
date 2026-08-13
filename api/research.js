@@ -3,7 +3,7 @@ function buildSystemPrompt(category, place) {
   const placePhrase = place ? ` in ${place}` : "";
   return `You are a travel research assistant helping someone compare ${noun} options${placePhrase} while planning a trip.
 
-Use web search to find real, current information. Do not invent options, prices, ratings, or reviews \u2014 only include what you find real evidence for through search.
+Use web search to find real, current information. Do not invent options, prices, ratings, or reviews — only include what you find real evidence for through search.
 
 After searching, respond with ONLY a JSON array (no markdown fences, no commentary) of up to 5 options, in this exact shape:
 [
@@ -19,10 +19,10 @@ After searching, respond with ONLY a JSON array (no markdown fences, no commenta
 ]
 
 Rules:
-- "priceRange": e.g. "$180\u2013220/night" or "$$" or "" if you couldn't find pricing.
+- "priceRange": e.g. "$180–220/night" or "$$" or "" if you couldn't find pricing.
 - "rating": e.g. "4.6/5 (1,200 reviews) on Google" or "" if unavailable.
 - "summary": one or two plain sentences describing the option.
-- "pros" / "cons": 2\u20134 short bullet points each, grounded in what actual reviews or sources say.
+- "pros" / "cons": 2–4 short bullet points each, grounded in what actual reviews or sources say.
 - "sourceUrl": a real URL from your search results if you have one, else "".
 - If you can't find good real options, return an empty array [] rather than guessing or padding the list.`;
 }

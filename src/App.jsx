@@ -23,7 +23,7 @@ const TABS = [
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const it = (text) => ({ id: uid(), text, checked: false });
-const DEFAULT_DAY_COLUMN_LABELS = ["Hotel", "Restaurants", "Experiences", "Sights", "Travel"];
+const DEFAULT_DAY_COLUMN_LABELS = ["Hotel", "Restaurants", "Experiences", "Sights", "Travel", "Notes"];
 const dayColumn = (label) => ({ id: uid(), label });
 const emptyCells = (columns) => Object.fromEntries((columns || []).map((c) => [c.id, ""]));
 const day = (date, region, plan, columns) => ({
@@ -76,52 +76,52 @@ function makeItalyTrip() {
       { id: "florence", label: "Florence", color: "#B8862F" },
     ],
     flights: {
-      outDate: "Thu, Nov 5, 2026", outTime: "5:25 PM", outRoute: "JFK \u2192 FCO",
+      outDate: "Thu, Nov 5, 2026", outTime: "5:25 PM", outRoute: "JFK → FCO",
       outArrDate: "Fri, Nov 6, 2026", outArrTime: "7:45 AM",
-      retDate: "Sat, Nov 21, 2026", retTime: "1:00 PM", retRoute: "FCO \u2192 JFK",
+      retDate: "Sat, Nov 21, 2026", retTime: "1:00 PM", retRoute: "FCO → JFK",
       retArrTime: "5:02 PM",
     },
     dayColumns,
     days: [
-      day("11/5", "travel", "Travel \u2014 overnight (red-eye) flight, ~8.5 hrs", dayColumns),
-      day("11/6", "rome", "Arrive Rome AM \u2014 chill day, food day", dayColumns),
-      day("11/7", "rome", "Rome \u2014 museum day", dayColumns),
-      day("11/8", "rome", "Rome \u2014 open", dayColumns),
-      day("11/9", "rome", "Rome \u2014 possible Naples/Pompeii day trip", dayColumns),
-      day("11/10", "rome", "Rome \u2014 depart AM or evening for Siena/Chiusi/Sarteano by train, rent a car", dayColumns),
+      day("11/5", "travel", "Travel — overnight (red-eye) flight, ~8.5 hrs", dayColumns),
+      day("11/6", "rome", "Arrive Rome AM — chill day, food day", dayColumns),
+      day("11/7", "rome", "Rome — museum day", dayColumns),
+      day("11/8", "rome", "Rome — open", dayColumns),
+      day("11/9", "rome", "Rome — possible Naples/Pompeii day trip", dayColumns),
+      day("11/10", "rome", "Rome — depart AM or evening for Siena/Chiusi/Sarteano by train, rent a car", dayColumns),
       day("11/11", "tuscany", "Tuscany day 1", dayColumns),
       day("11/12", "tuscany", "Tuscany day 2", dayColumns),
       day("11/13", "tuscany", "Tuscany day 3", dayColumns),
       day("11/14", "tuscany", "Tuscany day 4", dayColumns),
       day("11/15", "tuscany", "Tuscany day 5", dayColumns),
-      day("11/16", "florence", "Arrive Florence \u2014 Florence day 1", dayColumns),
+      day("11/16", "florence", "Arrive Florence — Florence day 1", dayColumns),
       day("11/17", "florence", "Florence day 2", dayColumns),
       day("11/18", "florence", "Florence day 3", dayColumns),
       day("11/19", "florence", "Florence day 4", dayColumns),
-      day("11/20", "florence", "Florence day 5 \u2014 depart PM for Rome", dayColumns),
-      day("11/21", "rome", "Rome \u2014 final day, departure flight home", dayColumns),
+      day("11/20", "florence", "Florence day 5 — depart PM for Rome", dayColumns),
+      day("11/21", "rome", "Rome — final day, departure flight home", dayColumns),
     ],
     sections: [
       list("Top 5 must-sees", "rome", [it("Colosseum, Roman Forum and Palatine Hill"), it("Vatican Museums, Sistine Chapel and St. Peter's"), it("Pantheon"), it("Trevi Fountain"), it("Spanish Steps"), it("Maybe: Pompeii")]),
       list("Hidden gems", "rome", [it("Palazzo Altemps"), it("Palazzo Colonna"), it("Centrale Montemartini"), it("Capuchin Crypt"), it("Villa Doria Pamphili"), it("Catacombs")]),
       list("Things to eat", "rome", [it("Artichoke")]),
       list("Sarteano / Siena", "tuscany", [
-        it("Stay in Sarteano, day-trip to Siena (1hr), Montepulciano (30min), Pienza (40min) \u2014 apartment available, send dates"),
-        it("Or: 2 nights Siena + 2 nights Sarteano \u2014 Hotel Athena (3-star) or Grand Hotel Continental"),
-        it("Siena Duomo \u2014 do the Porta del Cielo tour up to the rafters"),
-        it("Ospedale di Santa Maria della Scala \u2014 former pilgrim hospital museum, across from Duomo"),
-        it("Sarteano \u2014 11th-century castle, Etruscan tomb (Saturdays only, reservation)"),
-        it("Monteverdi Tuscany \u2014 resort near Sarteano, go for dinner"),
-        it("La Foce gardens \u2014 magnificent, summer chamber concerts w/ Alessio Bax"),
+        it("Stay in Sarteano, day-trip to Siena (1hr), Montepulciano (30min), Pienza (40min) — apartment available, send dates"),
+        it("Or: 2 nights Siena + 2 nights Sarteano — Hotel Athena (3-star) or Grand Hotel Continental"),
+        it("Siena Duomo — do the Porta del Cielo tour up to the rafters"),
+        it("Ospedale di Santa Maria della Scala — former pilgrim hospital museum, across from Duomo"),
+        it("Sarteano — 11th-century castle, Etruscan tomb (Saturdays only, reservation)"),
+        it("Monteverdi Tuscany — resort near Sarteano, go for dinner"),
+        it("La Foce gardens — magnificent, summer chamber concerts w/ Alessio Bax"),
       ]),
-      list("On the way to Rome", "tuscany", [it("Civita di Bagnoreggio \u2014 spend a few hours here")]),
+      list("On the way to Rome", "tuscany", [it("Civita di Bagnoreggio — spend a few hours here")]),
       list("Sightseeing & food", "florence", [
-        it("Accademia or Uffizi \u2014 skip-the-line ticket or go very early"),
-        it("The Duomo \u2014 climb the dome (closed Nov 16\u201320, 2026)"),
-        it("Basilica of Santa Croce \u2014 tombs of Galileo, Rossini"),
-        it("Officina Profumo di Santa Maria Novella \u2014 historic pharmacy, pricey"),
-        it("Bistecca fiorentina \u2014 huge, mostly-rare steak"),
-        it("Lampredotto \u2014 tripe sandwich street food"),
+        it("Accademia or Uffizi — skip-the-line ticket or go very early"),
+        it("The Duomo — climb the dome (closed Nov 16–20, 2026)"),
+        it("Basilica of Santa Croce — tombs of Galileo, Rossini"),
+        it("Officina Profumo di Santa Maria Novella — historic pharmacy, pricey"),
+        it("Bistecca fiorentina — huge, mostly-rare steak"),
+        it("Lampredotto — tripe sandwich street food"),
       ]),
       list("Things to buy", "florence", []),
     ],
@@ -202,7 +202,7 @@ function sectionedDaysToSpreadsheet(sectionedDays) {
         const t = (i.time || "").trim();
         const txt = (i.text || "").trim();
         if (!t && !txt) return "";
-        return t ? `${t} \u2014 ${txt}` : txt;
+        return t ? `${t} — ${txt}` : txt;
       })
       .filter(Boolean)
       .join("\n");
@@ -231,6 +231,11 @@ function migrateTripShape(t) {
   if (Array.isArray(t.dayColumns)) {
     // Already the spreadsheet shape -- keep columns as-is, just make sure every day has a cell for each.
     dayColumns = t.dayColumns.map((c) => ({ id: c.id || uid(), label: c.label || "Column" }));
+    // Backfill a "Notes" column for trips created before it became a default, so there's
+    // always a catch-all place to write things that don't fit the other columns.
+    if (!dayColumns.some((c) => c.label.trim().toLowerCase() === "notes")) {
+      dayColumns = [...dayColumns, dayColumn("Notes")];
+    }
     const colIds = dayColumns.map((c) => c.id);
     days = (t.days || []).map((d) => {
       const cells = {};
@@ -243,6 +248,11 @@ function migrateTripShape(t) {
     const converted = sectionedDaysToSpreadsheet(sectioned);
     dayColumns = converted.columns;
     days = converted.days;
+    if (!dayColumns.some((c) => c.label.trim().toLowerCase() === "notes")) {
+      const notesCol = dayColumn("Notes");
+      dayColumns = [...dayColumns, notesCol];
+      days = days.map((d) => ({ ...d, cells: { ...d.cells, [notesCol.id]: "" } }));
+    }
   }
 
   return {
@@ -415,7 +425,8 @@ function AutoNote({ value, onChange, placeholder, className = "", style, ...prop
     el.style.height = `${el.scrollHeight}px`;
   };
   useEffect(() => {
-    resize(ref.current);
+    const raf = requestAnimationFrame(() => resize(ref.current));
+    return () => cancelAnimationFrame(raf);
   }, [value]);
   return (
     <textarea
@@ -428,7 +439,9 @@ function AutoNote({ value, onChange, placeholder, className = "", style, ...prop
       placeholder={placeholder}
       rows={1}
       className={`bg-transparent outline-none w-full resize-none ${className}`}
-      style={{ color: "inherit", lineHeight: 1.45, overflow: "hidden", display: "block", ...style }}
+      style={{ color: "inherit", lineHeight: 1.45, overflow: "hidden", display: "block", border: "1px dashed transparent", borderRadius: 4, ...style }}
+      onFocus={(e) => (e.target.style.border = "1px dashed #C99A44")}
+      onBlur={(e) => (e.target.style.border = "1px dashed transparent")}
       {...props}
     />
   );
@@ -511,13 +524,13 @@ function SearchAndCompare({ groupLabel, itemNoun, onAddResult }) {
       if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
       const list = Array.isArray(json.results) ? json.results : [];
       if (list.length === 0) {
-        setError(`Didn't find good options for that \u2014 try a broader or more specific search.`);
+        setError(`Didn't find good options for that — try a broader or more specific search.`);
         setLoading(false);
         return;
       }
       setResults(list);
     } catch (err) {
-      setError((err && err.message) || "Search failed \u2014 try again.");
+      setError((err && err.message) || "Search failed — try again.");
     } finally {
       setLoading(false);
     }
@@ -556,7 +569,7 @@ function SearchAndCompare({ groupLabel, itemNoun, onAddResult }) {
               }}
             >
               {loading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
-              {loading ? "Searching\u2026" : "Search"}
+              {loading ? "Searching…" : "Search"}
             </button>
           </div>
 
@@ -587,7 +600,7 @@ function SearchAndCompare({ groupLabel, itemNoun, onAddResult }) {
                   </div>
                   <div className="flex items-center gap-2 mb-1.5 flex-wrap" style={{ fontSize: 11, color: "#8A7B5C" }}>
                     {r.priceRange && <span>{r.priceRange}</span>}
-                    {r.rating && <span>{r.priceRange ? "\u00b7 " : ""}{r.rating}</span>}
+                    {r.rating && <span>{r.priceRange ? "· " : ""}{r.rating}</span>}
                   </div>
                   {r.summary && <p style={{ fontSize: 12.5, marginBottom: 8, lineHeight: 1.4 }}>{r.summary}</p>}
                   <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
@@ -863,7 +876,7 @@ function ImportPanel({ legs, noteGroups, onApply }) {
       };
       const total = normalized.flights.length + normalized.hotels.length + normalized.restaurants.length + normalized.experiences.length;
       if (total === 0) {
-        setError("Didn't find any flights, hotels, restaurants, or experiences in that \u2014 try pasting more of the confirmation text.");
+        setError("Didn't find any flights, hotels, restaurants, or experiences in that — try pasting more of the confirmation text.");
         setLoading(false);
         return;
       }
@@ -875,7 +888,7 @@ function ImportPanel({ legs, noteGroups, onApply }) {
       normalized.experiences.forEach((_, i) => (sel[`experiences-${i}`] = true));
       setSelections(sel);
     } catch (err) {
-      setError((err && err.message) || "Couldn't parse that \u2014 try again.");
+      setError((err && err.message) || "Couldn't parse that — try again.");
     } finally {
       setLoading(false);
     }
@@ -938,7 +951,7 @@ function ImportPanel({ legs, noteGroups, onApply }) {
         }}
       >
         {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-        {loading ? "Reading\u2026" : "Parse"}
+        {loading ? "Reading…" : "Parse"}
       </button>
 
       {error && (
@@ -977,12 +990,12 @@ function ImportPanel({ legs, noteGroups, onApply }) {
                     const checked = !!selections[selKey];
                     const title =
                       group.key === "flights"
-                        ? `${item.direction === "return" ? "Return" : "Outbound"}: ${item.route || "?"} \u2014 ${item.date || "?"} ${item.time || ""}`.trim()
+                        ? `${item.direction === "return" ? "Return" : "Outbound"}: ${item.route || "?"} — ${item.date || "?"} ${item.time || ""}`.trim()
                         : item.name || "Untitled";
                     const subtitle =
                       group.key === "flights"
                         ? [item.arrivalDate, item.arrivalTime].filter(Boolean).join(" ")
-                        : [item.when, item.confirmation].filter(Boolean).join(" \u00b7 ");
+                        : [item.when, item.confirmation].filter(Boolean).join(" · ");
                     return (
                       <label key={selKey} className="flex items-start gap-2" style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 8, padding: "8px 10px", cursor: "pointer" }}>
                         <input type="checkbox" checked={checked} onChange={() => toggleSelection(selKey)} style={{ marginTop: 3 }} />
@@ -1098,10 +1111,10 @@ function SuggestionsPanel({ trip }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
       const reply = (json.text || "").trim();
-      if (!reply) throw new Error("No response \u2014 try again.");
+      if (!reply) throw new Error("No response — try again.");
       setMessages((m) => [...m, { role: "assistant", content: reply }]);
     } catch (err) {
-      setError((err && err.message) || "Something went wrong \u2014 try again.");
+      setError((err && err.message) || "Something went wrong — try again.");
     } finally {
       setLoading(false);
     }
@@ -1188,7 +1201,7 @@ function SuggestionsPanel({ trip }) {
               onKeyDown={(e) => {
                 if (e.key === "Enter") send(draft);
               }}
-              placeholder={messages.length === 0 ? "Or ask a question about your trip\u2026" : "Ask a follow-up\u2026"}
+              placeholder={messages.length === 0 ? "Or ask a question about your trip…" : "Ask a follow-up…"}
               disabled={loading}
               className="flex-1 outline-none text-sm"
               style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 8, padding: "9px 11px" }}
@@ -1452,7 +1465,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
       const placements = Array.isArray(json.cells) ? json.cells : [];
-      if (placements.length === 0) throw new Error("Didn't find anything to organize \u2014 try adding more detail.");
+      if (placements.length === 0) throw new Error("Didn't find anything to organize — try adding more detail.");
       updateTrip((t) => {
         let nextColumns = [...t.dayColumns];
         const cellUpdates = {};
@@ -1490,7 +1503,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
       });
       patchUi(id, { loading: false });
     } catch (err) {
-      patchUi(id, { loading: false, error: (err && err.message) || "Couldn't organize that \u2014 try again." });
+      patchUi(id, { loading: false, error: (err && err.message) || "Couldn't organize that — try again." });
     }
   };
 
@@ -1654,7 +1667,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
                   <Plane size={15} color={BRASS} style={{ transform: t.label === "Return" ? "rotate(180deg)" : "none" }} />
                 </div>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, fontWeight: 500, marginBottom: 10 }}>
-                  <Field value={trip.flights[t.routeKey]} onChange={(v) => updateFlights(t.routeKey, v)} mono placeholder="XXX \u2192 YYY" />
+                  <Field value={trip.flights[t.routeKey]} onChange={(v) => updateFlights(t.routeKey, v)} mono placeholder="XXX → YYY" />
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1" style={{ fontSize: 12 }}>
                   <div>
@@ -1723,13 +1736,13 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
                   const region = regionOf(d.region);
                   return (
                     <tr key={d.id} style={{ borderBottom: "1px solid #8A7B5C1c" }}>
-                      <td style={{ padding: "6px 8px", fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: "#8A7B5C", textAlign: "center" }}>
+                      <td style={{ padding: "6px 8px", verticalAlign: "top", fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: "#8A7B5C", textAlign: "center" }}>
                         {String(realIdx + 1).padStart(2, "0")}
                       </td>
-                      <td style={{ padding: "6px 8px", borderLeft: `4px solid ${region.color}` }}>
+                      <td style={{ padding: "6px 8px", verticalAlign: "top", borderLeft: `4px solid ${region.color}` }}>
                         <Field value={d.date} onChange={(v) => updateDay(d.id, "date", v)} placeholder="date" mono style={{ fontSize: 12.5, color: PAPER_TEXT }} />
                       </td>
-                      <td style={{ padding: "6px 8px" }}>
+                      <td style={{ padding: "6px 8px", verticalAlign: "top" }}>
                         <select
                           value={d.region}
                           onChange={(e) => updateDay(d.id, "region", e.target.value)}
@@ -1740,21 +1753,21 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
                           ))}
                         </select>
                       </td>
-                      <td style={{ padding: "6px 8px" }}>
+                      <td style={{ padding: "6px 8px", verticalAlign: "top" }}>
                         <AutoNote value={d.plan} onChange={(v) => updateDay(d.id, "plan", v)} placeholder="Quick summary" style={{ fontSize: 12.5, color: PAPER_TEXT }} />
                       </td>
                       {trip.dayColumns.map((col) => (
-                        <td key={col.id} style={{ padding: "6px 8px", borderLeft: "1px solid #8A7B5C14" }}>
+                        <td key={col.id} style={{ padding: "6px 8px", verticalAlign: "top", borderLeft: "1px solid #8A7B5C14" }}>
                           <AutoNote
                             value={(d.cells && d.cells[col.id]) || ""}
                             onChange={(v) => updateDayCell(d.id, col.id, v)}
-                            placeholder="\u2014"
+                            placeholder="—"
                             style={{ fontSize: 12.5, color: PAPER_TEXT }}
                           />
                         </td>
                       ))}
                       <td />
-                      <td style={{ padding: "6px 4px" }}>
+                      <td style={{ padding: "6px 4px", verticalAlign: "top" }}>
                         <div className="fx-actions flex items-center gap-0.5">
                           <IconBtn title="Move up" onClick={() => moveDay(d.id, -1)}><ChevronUp size={14} color="#8A7B5C" /></IconBtn>
                           <IconBtn title="Move down" onClick={() => moveDay(d.id, 1)}><ChevronDown size={14} color="#8A7B5C" /></IconBtn>
@@ -1785,7 +1798,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
               >
                 {trip.days.map((x, i) => (
                   <option key={x.id} value={x.id}>
-                    Day {i + 1}{x.date ? ` \u2014 ${x.date}` : ""}
+                    Day {i + 1}{x.date ? ` — ${x.date}` : ""}
                   </option>
                 ))}
               </select>
@@ -1814,7 +1827,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
                       }}
                     >
                       {u.loading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                      {u.loading ? "Organizing\u2026" : "Organize into that day"}
+                      {u.loading ? "Organizing…" : "Organize into that day"}
                     </button>
                     {u.error && <p style={{ color: "#E39B8C", fontSize: 11.5, marginTop: 6 }}>{u.error}</p>}
                   </>
@@ -1914,7 +1927,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
 
       {tab === "hotels" && (
         <BookingsPanel
-          category="hotels" itemNoun="Hotel" whenLabel="Check-in \u2013 check-out" confirmLabel="Confirmation #"
+          category="hotels" itemNoun="Hotel" whenLabel="Check-in – check-out" confirmLabel="Confirmation #"
           entries={trip.bookings.hotels} noteGroups={noteGroups} onAdd={addBooking} onUpdate={updateBooking} onDelete={deleteBooking}
           onAddFromSearch={addBookingFromSearch}
           isOpen={isSectionOpen} onToggle={toggleSection}
@@ -2195,7 +2208,7 @@ export default function App() {
 
         <div className="flex items-center justify-end gap-2 mb-4 flex-wrap">
           <span style={{ fontSize: 11, color: MUTED, fontFamily: "'IBM Plex Mono', monospace", minWidth: 70, textAlign: "right" }}>
-            {status === "saving" ? "saving\u2026" : status === "saved" ? "all changes saved" : status === "error" ? "save failed" : ""}
+            {status === "saving" ? "saving…" : status === "saved" ? "all changes saved" : status === "error" ? "save failed" : ""}
           </span>
           <button onClick={exportBackup} className="flex items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity" style={{ fontSize: 12, color: PAPER, border: `1px solid ${MUTED}55`, borderRadius: 8, padding: "6px 10px" }}>
             <Download size={13} /> Export backup
