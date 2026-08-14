@@ -63,8 +63,16 @@ Shopping, Transportation, Tips & Misc) are there to start you off — rename,
 delete, or add your own freely. Each category has a target amount plus a
 list of actual expenses you log as you go; the header shows total budgeted
 vs. total spent vs. what's left (or how far over you are), and each category
-shows the same breakdown with a small progress bar. The currency symbol is
-editable if you're not budgeting in dollars.
+shows the same breakdown with a small progress bar.
+
+**Currency conversion:** if you're spending in a different currency than
+you budget in (e.g. paying in euros but tracking totals in dollars), set
+"Entering expenses in" (e.g. `EUR`) and either click "Get live rate" (pulls
+a current rate from a free exchange-rate API, no key needed) or type a rate
+in yourself. Every expense amount then shows its converted total in small
+text underneath, and all the running totals use the converted figures.
+Leave "Entering expenses in" blank if everything's already in your budget
+currency — nothing changes from that.
 
 This is intentionally a separate, self-contained tracker rather than pulling
 costs from Hotels/Restaurants/Experiences automatically — log an expense

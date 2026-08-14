@@ -3,7 +3,7 @@ import {
   Plane, Plus, Trash2, ChevronUp, ChevronDown, MapPin,
   FolderPlus, Check, Sparkles, Loader2, FileText,
   BedDouble, UtensilsCrossed, Ticket, Download, Upload, AlertTriangle, FileUp, X,
-  ArrowLeft, Tag, Bookmark, Folder, Search, Send, Wallet
+  ArrowLeft, Tag, Bookmark, Folder, Search, Send, Wallet, RefreshCw
 } from "lucide-react";
 
 // ---------- constants & small factories ----------
@@ -41,7 +41,13 @@ const leg = (label, color) => ({ id: uid(), label, color });
 const budgetItem = (name, amount) => ({ id: uid(), name: name || "", amount: amount || "" });
 const budgetCategory = (name, region) => ({ id: uid(), name: name || "New category", region: region || "general", budgeted: "", items: [] });
 const DEFAULT_BUDGET_CATEGORY_NAMES = ["Flights", "Lodging", "Food & Drink", "Activities", "Shopping", "Transportation", "Tips & Misc"];
-const defaultBudget = () => ({ currency: "$", categories: DEFAULT_BUDGET_CATEGORY_NAMES.map((n) => budgetCategory(n, "general")) });
+const defaultBudget = () => ({ currency: "$", expenseCurrency: "", exchangeRate: "", categories: DEFAULT_BUDGET_CATEGORY_NAMES.map((n) => budgetCategory(n, "general")) });
+const CURRENCY_SYMBOL_TO_CODE = { "$": "USD", "\u20ac": "EUR", "\u00a3": "GBP", "\u00a5": "JPY", "\u20b9": "INR", "\u20a9": "KRW", "Fr": "CHF" };
+const toCurrencyCode = (val) => {
+  const v = (val || "").trim();
+  if (/^[A-Za-z]{3}$/.test(v)) return v.toUpperCase();
+  return CURRENCY_SYMBOL_TO_CODE[v] || "USD";
+};
 const parseAmount = (val) => {
   const n = parseFloat(String(val || "").replace(/[^0-9.-]/g, ""));
   return isNaN(n) ? 0 : n;
@@ -256,6 +262,8 @@ function migrateTripShape(t) {
     })),
     budget: {
       currency: (t.budget && t.budget.currency) || "$",
+      expenseCurrency: (t.budget && t.budget.expenseCurrency) || "",
+      exchangeRate: (t.budget && t.budget.exchangeRate) || "",
       categories:
         t.budget && Array.isArray(t.budget.categories)
           ? t.budget.categories.map((c) => ({
@@ -791,12 +799,41 @@ function NotesLikePanel({ sections, noteGroups, isSectionOpen, toggleSection, on
 
 // ---------- budget: categories with a target amount, grouped by destination ----------
 
-function BudgetPanel({ trip, noteGroups, onSetCurrency, onAddCategory, onUpdateCategory, onDeleteCategory, onAddItem, onUpdateItem, onDeleteItem, isOpen, onToggle }) {
+function BudgetPanel({ trip, noteGroups, onSetCurrency, onSetExpenseCurrency, onSetExchangeRate, onAddCategory, onUpdateCategory, onDeleteCategory, onAddItem, onUpdateItem, onDeleteItem, isOpen, onToggle }) {
   const PAPER = "#F3ECDD", PAPER_TEXT = "#2B2118", BRASS = "#C99A44", MUTED = "#9FA8B3", INK = "#1B2430";
   const currency = trip.budget.currency || "$";
+  const expenseCurrency = trip.budget.expenseCurrency || "";
+  const exchangeRate = trip.budget.exchangeRate || "";
   const categories = trip.budget.categories || [];
+  const converting = expenseCurrency.trim().length > 0;
+  const rate = converting ? parseAmount(exchangeRate) || 1 : 1;
 
-  const catSpent = (cat) => cat.items.reduce((sum, i) => sum + parseAmount(i.amount), 0);
+  const [rateLoading, setRateLoading] = useState(false);
+  const [rateError, setRateError] = useState(null);
+
+  const fetchLiveRate = async () => {
+    const from = toCurrencyCode(expenseCurrency);
+    const to = toCurrencyCode(currency);
+    setRateLoading(true);
+    setRateError(null);
+    try {
+      if (from === to) {
+        onSetExchangeRate("1");
+      } else {
+        const res = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${to}`);
+        const json = await res.json();
+        const r = json.rates && json.rates[to];
+        if (!r) throw new Error("no rate in response");
+        onSetExchangeRate(String(r));
+      }
+    } catch {
+      setRateError("Couldn't fetch a live rate \u2014 enter one manually below instead.");
+    } finally {
+      setRateLoading(false);
+    }
+  };
+
+  const catSpent = (cat) => cat.items.reduce((sum, i) => sum + parseAmount(i.amount) * rate, 0);
   const totalBudgeted = categories.reduce((sum, c) => sum + parseAmount(c.budgeted), 0);
   const totalSpent = categories.reduce((sum, c) => sum + catSpent(c), 0);
   const diff = totalBudgeted - totalSpent;
@@ -819,10 +856,30 @@ function BudgetPanel({ trip, noteGroups, onSetCurrency, onAddCategory, onUpdateC
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-6">
-        <span style={{ fontSize: 12, color: MUTED }}>Currency symbol:</span>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span style={{ fontSize: 12, color: MUTED }}>Budget currency:</span>
         <Field value={currency} onChange={onSetCurrency} style={{ width: 32, fontSize: 13, color: "#F3ECDD" }} />
+        <span style={{ fontSize: 12, color: MUTED, marginLeft: 10 }}>Entering expenses in:</span>
+        <Field value={expenseCurrency} onChange={onSetExpenseCurrency} placeholder="e.g. EUR (leave blank if same)" style={{ width: 170, fontSize: 13, color: "#F3ECDD" }} />
       </div>
+      {converting && (
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span style={{ fontSize: 12, color: MUTED }}>Rate (1 {toCurrencyCode(expenseCurrency)} =)</span>
+          <Field value={exchangeRate} onChange={onSetExchangeRate} placeholder="1.00" mono style={{ width: 60, fontSize: 13, color: "#F3ECDD" }} />
+          <span style={{ fontSize: 12, color: MUTED }}>{toCurrencyCode(currency)}</span>
+          <button
+            onClick={fetchLiveRate}
+            disabled={rateLoading}
+            className="flex items-center gap-1"
+            style={{ fontSize: 11.5, fontWeight: 500, color: INK, background: BRASS, borderRadius: 6, padding: "4px 9px", opacity: rateLoading ? 0.6 : 1 }}
+          >
+            {rateLoading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+            {rateLoading ? "Fetching\u2026" : "Get live rate"}
+          </button>
+        </div>
+      )}
+      {rateError && <p style={{ fontSize: 11, color: "#E39B8C", marginBottom: 8 }}>{rateError}</p>}
+      <div className="mb-4" />
 
       {noteGroups.map((group) => {
         const groupCats = categories.filter((c) => (c.region || "general") === group.id);
@@ -873,7 +930,12 @@ function BudgetPanel({ trip, noteGroups, onSetCurrency, onAddCategory, onUpdateC
                             {cat.items.map((item) => (
                               <div key={item.id} className="flex items-start gap-2">
                                 <AutoNote value={item.name} onChange={(v) => onUpdateItem(cat.id, item.id, "name", v)} placeholder="What was it?" className="flex-1 text-sm" style={{ color: PAPER_TEXT }} />
-                                <Field value={item.amount} onChange={(v) => onUpdateItem(cat.id, item.id, "amount", v)} placeholder="0" mono style={{ width: 64, fontSize: 12.5, flexShrink: 0, paddingTop: 3 }} />
+                                <div className="flex flex-col items-end" style={{ flexShrink: 0 }}>
+                                  <Field value={item.amount} onChange={(v) => onUpdateItem(cat.id, item.id, "amount", v)} placeholder="0" mono style={{ width: 64, fontSize: 12.5, paddingTop: 3 }} />
+                                  {converting && (item.amount || "").trim() && (
+                                    <span style={{ fontSize: 9.5, color: "#8A7B5C", marginTop: 1 }}>{fmt(parseAmount(item.amount) * rate)}</span>
+                                  )}
+                                </div>
                                 <button onClick={() => onDeleteItem(cat.id, item.id)} title="Delete expense" aria-label="Delete expense" style={{ opacity: 0.35, marginTop: 4, flexShrink: 0 }}>
                                   <Trash2 size={11} color="#B5533C" />
                                 </button>
@@ -1514,6 +1576,8 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
   };
 
   const setBudgetCurrency = (currency) => updateTrip((t) => ({ ...t, budget: { ...t.budget, currency } }));
+  const setExpenseCurrency = (expenseCurrency) => updateTrip((t) => ({ ...t, budget: { ...t.budget, expenseCurrency } }));
+  const setExchangeRate = (exchangeRate) => updateTrip((t) => ({ ...t, budget: { ...t.budget, exchangeRate } }));
   const addBudgetCategory = (region) =>
     updateTrip((t) => ({ ...t, budget: { ...t.budget, categories: [...t.budget.categories, budgetCategory("New category", region)] } }));
   const updateBudgetCategory = (id, field, val) =>
@@ -2078,6 +2142,8 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
           trip={trip}
           noteGroups={noteGroups}
           onSetCurrency={setBudgetCurrency}
+          onSetExpenseCurrency={setExpenseCurrency}
+          onSetExchangeRate={setExchangeRate}
           onAddCategory={addBudgetCategory}
           onUpdateCategory={updateBudgetCategory}
           onDeleteCategory={deleteBudgetCategory}
