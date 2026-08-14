@@ -55,6 +55,21 @@ of a trip. Notes, bookings, and days can all be tagged to a destination, plus
 two built-in groups that are always there: **General** (trip-wide notes not
 tied to one place) and **Travel** (for transit days, like a flight day).
 
+## Budget
+
+Each trip has a **Budget** tab, grouped by destination like everything else.
+Seven starter categories (Flights, Lodging, Food & Drink, Activities,
+Shopping, Transportation, Tips & Misc) are there to start you off — rename,
+delete, or add your own freely. Each category has a target amount plus a
+list of actual expenses you log as you go; the header shows total budgeted
+vs. total spent vs. what's left (or how far over you are), and each category
+shows the same breakdown with a small progress bar. The currency symbol is
+editable if you're not budgeting in dollars.
+
+This is intentionally a separate, self-contained tracker rather than pulling
+costs from Hotels/Restaurants/Experiences automatically — log an expense
+once here when you know what something actually cost.
+
 ## Day structure
 
 Each day breaks down into editable sections — Hotel, Restaurants,

@@ -3,7 +3,7 @@ import {
   Plane, Plus, Trash2, ChevronUp, ChevronDown, MapPin,
   FolderPlus, Check, Sparkles, Loader2, FileText,
   BedDouble, UtensilsCrossed, Ticket, Download, Upload, AlertTriangle, FileUp, X,
-  ArrowLeft, Tag, Bookmark, Folder, Search, Send
+  ArrowLeft, Tag, Bookmark, Folder, Search, Send, Wallet
 } from "lucide-react";
 
 // ---------- constants & small factories ----------
@@ -18,6 +18,7 @@ const TABS = [
   { id: "hotels", label: "Hotels", icon: BedDouble },
   { id: "restaurants", label: "Restaurants", icon: UtensilsCrossed },
   { id: "experiences", label: "Experiences", icon: Ticket },
+  { id: "budget", label: "Budget", icon: Wallet },
   { id: "import", label: "Import", icon: FileUp },
 ];
 
@@ -37,6 +38,14 @@ const day = (date, region, plan) => ({
 const list = (title, region, items) => ({ id: uid(), title, region, items });
 const booking = (region) => ({ id: uid(), name: "", region: region || "general", when: "", confirmation: "", notes: "" });
 const leg = (label, color) => ({ id: uid(), label, color });
+const budgetItem = (name, amount) => ({ id: uid(), name: name || "", amount: amount || "" });
+const budgetCategory = (name, region) => ({ id: uid(), name: name || "New category", region: region || "general", budgeted: "", items: [] });
+const DEFAULT_BUDGET_CATEGORY_NAMES = ["Flights", "Lodging", "Food & Drink", "Activities", "Shopping", "Transportation", "Tips & Misc"];
+const defaultBudget = () => ({ currency: "$", categories: DEFAULT_BUDGET_CATEGORY_NAMES.map((n) => budgetCategory(n, "general")) });
+const parseAmount = (val) => {
+  const n = parseFloat(String(val || "").replace(/[^0-9.-]/g, ""));
+  return isNaN(n) ? 0 : n;
+};
 
 const defaultFlights = () => ({
   outDate: "", outTime: "", outRoute: "", outArrDate: "", outArrTime: "",
@@ -55,6 +64,7 @@ function makeTrip(name, dates) {
     bookings: { hotels: [], restaurants: [], experiences: [] },
     customTabs: [],
     bookingCategories: [],
+    budget: defaultBudget(),
   };
 }
 
@@ -124,6 +134,7 @@ function makeItalyTrip() {
     bookings: { hotels: [], restaurants: [], experiences: [] },
     customTabs: [],
     bookingCategories: [],
+    budget: defaultBudget(),
   };
 }
 
@@ -241,6 +252,19 @@ function migrateTripShape(t) {
       name: bc.name || "New category",
       entries: bc.entries || [],
     })),
+    budget: {
+      currency: (t.budget && t.budget.currency) || "$",
+      categories:
+        t.budget && Array.isArray(t.budget.categories)
+          ? t.budget.categories.map((c) => ({
+              id: c.id || uid(),
+              name: c.name || "Category",
+              region: validIds.includes(c.region) ? c.region : "general",
+              budgeted: c.budgeted || "",
+              items: (c.items || []).map((i) => ({ id: i.id || uid(), name: i.name || "", amount: i.amount || "" })),
+            }))
+          : DEFAULT_BUDGET_CATEGORY_NAMES.map((n) => budgetCategory(n, "general")),
+    },
   };
 }
 
@@ -763,6 +787,117 @@ function NotesLikePanel({ sections, noteGroups, isSectionOpen, toggleSection, on
   );
 }
 
+// ---------- budget: categories with a target amount, grouped by destination ----------
+
+function BudgetPanel({ trip, noteGroups, onSetCurrency, onAddCategory, onUpdateCategory, onDeleteCategory, onAddItem, onUpdateItem, onDeleteItem, isOpen, onToggle }) {
+  const PAPER = "#F3ECDD", PAPER_TEXT = "#2B2118", BRASS = "#C99A44", MUTED = "#9FA8B3", INK = "#1B2430";
+  const currency = trip.budget.currency || "$";
+  const categories = trip.budget.categories || [];
+
+  const catSpent = (cat) => cat.items.reduce((sum, i) => sum + parseAmount(i.amount), 0);
+  const totalBudgeted = categories.reduce((sum, c) => sum + parseAmount(c.budgeted), 0);
+  const totalSpent = categories.reduce((sum, c) => sum + catSpent(c), 0);
+  const diff = totalBudgeted - totalSpent;
+  const fmt = (n) => `${currency}${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+  return (
+    <div>
+      <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+        <div style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 10, padding: "12px 14px" }}>
+          <div style={{ fontSize: 10, color: "#8A7B5C", fontWeight: 600, letterSpacing: "0.05em" }}>BUDGETED</div>
+          <div className="fx-fraunces" style={{ fontSize: 22, fontStyle: "italic", fontWeight: 600, marginTop: 2 }}>{fmt(totalBudgeted)}</div>
+        </div>
+        <div style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 10, padding: "12px 14px" }}>
+          <div style={{ fontSize: 10, color: "#8A7B5C", fontWeight: 600, letterSpacing: "0.05em" }}>SPENT</div>
+          <div className="fx-fraunces" style={{ fontSize: 22, fontStyle: "italic", fontWeight: 600, marginTop: 2 }}>{fmt(totalSpent)}</div>
+        </div>
+        <div style={{ background: PAPER, color: diff >= 0 ? "#4B5D3A" : "#B5533C", borderRadius: 10, padding: "12px 14px" }}>
+          <div style={{ fontSize: 10, color: "#8A7B5C", fontWeight: 600, letterSpacing: "0.05em" }}>{diff >= 0 ? "REMAINING" : "OVER BUDGET"}</div>
+          <div className="fx-fraunces" style={{ fontSize: 22, fontStyle: "italic", fontWeight: 600, marginTop: 2 }}>{fmt(Math.abs(diff))}</div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-6">
+        <span style={{ fontSize: 12, color: MUTED }}>Currency symbol:</span>
+        <Field value={currency} onChange={onSetCurrency} style={{ width: 32, fontSize: 13, color: "#F3ECDD" }} />
+      </div>
+
+      {noteGroups.map((group) => {
+        const groupCats = categories.filter((c) => (c.region || "general") === group.id);
+        return (
+          <div key={group.id} className="mb-9" style={{ borderTop: `1px solid ${group.color}33`, paddingTop: 18 }}>
+            <GroupBadge group={group} />
+            {groupCats.length > 0 && (
+              <div className="flex flex-col gap-2 mb-3">
+                {groupCats.map((cat) => {
+                  const open = isOpen(cat.id);
+                  const spent = catSpent(cat);
+                  const budgeted = parseAmount(cat.budgeted);
+                  const over = budgeted > 0 && spent > budgeted;
+                  const pct = budgeted > 0 ? Math.min(100, (spent / budgeted) * 100) : 0;
+                  return (
+                    <div key={cat.id} className="fx-row" style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 10, borderLeft: `4px solid ${group.color}`, padding: open ? "12px 14px" : "10px 14px" }}>
+                      <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+                        <button onClick={() => onToggle(cat.id)} title={open ? "Collapse" : "Expand"} aria-label={open ? "Collapse" : "Expand"} className="shrink-0 flex items-center justify-center" style={{ width: 18, height: 18 }}>
+                          {open ? <ChevronUp size={13} color="#8A7B5C" /> : <ChevronDown size={13} color="#8A7B5C" />}
+                        </button>
+                        <Field value={cat.name} onChange={(v) => onUpdateCategory(cat.id, "name", v)} className="fx-fraunces flex-1" style={{ fontSize: 14.5, fontWeight: 600, fontStyle: "italic" }} />
+                        <select value={cat.region || "general"} onChange={(e) => onUpdateCategory(cat.id, "region", e.target.value)} style={{ fontSize: 10, background: "transparent", border: "none", color: group.color, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+                          {noteGroups.map((g) => (
+                            <option key={g.id} value={g.id} style={{ color: "#2B2118" }}>{g.label}</option>
+                          ))}
+                        </select>
+                        <button onClick={() => onDeleteCategory(cat.id)} className="fx-actions shrink-0" title="Delete category" aria-label="Delete category">
+                          <Trash2 size={13} color="#B5533C" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span style={{ fontSize: 11, color: "#8A7B5C" }}>Budget:</span>
+                        <Field value={cat.budgeted} onChange={(v) => onUpdateCategory(cat.id, "budgeted", v)} placeholder="0" mono style={{ width: 64, fontSize: 12 }} />
+                        <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: over ? "#B5533C" : "#4B5D3A" }}>
+                          {fmt(spent)} spent{budgeted > 0 ? ` of ${fmt(budgeted)}` : ""}
+                        </span>
+                      </div>
+                      {budgeted > 0 && (
+                        <div style={{ height: 4, background: "#8A7B5C22", borderRadius: 2, marginBottom: 8, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: over ? "#B5533C" : "#4B5D3A" }} />
+                        </div>
+                      )}
+
+                      {open && (
+                        <>
+                          <div className="flex flex-col gap-1.5 mb-2">
+                            {cat.items.map((item) => (
+                              <div key={item.id} className="flex items-start gap-2">
+                                <AutoNote value={item.name} onChange={(v) => onUpdateItem(cat.id, item.id, "name", v)} placeholder="What was it?" className="flex-1 text-sm" style={{ color: PAPER_TEXT }} />
+                                <Field value={item.amount} onChange={(v) => onUpdateItem(cat.id, item.id, "amount", v)} placeholder="0" mono style={{ width: 64, fontSize: 12.5, flexShrink: 0, paddingTop: 3 }} />
+                                <button onClick={() => onDeleteItem(cat.id, item.id)} title="Delete expense" aria-label="Delete expense" style={{ opacity: 0.35, marginTop: 4, flexShrink: 0 }}>
+                                  <Trash2 size={11} color="#B5533C" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <button onClick={() => onAddItem(cat.id)} className="flex items-center gap-1.5 opacity-55 hover:opacity-90 transition-opacity" style={{ fontSize: 11.5, color: "#8A7B5C" }}>
+                            <Plus size={12} /> Add expense
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <button onClick={() => onAddCategory(group.id)} className="flex items-center gap-2 opacity-55 hover:opacity-100 transition-opacity" style={{ fontSize: 12, color: "#F3ECDD", border: "1px dashed #9FA8B355", borderRadius: 8, padding: "7px 12px" }}>
+              <Plus size={13} /> Add category to {group.label}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ---------- import (paste/upload -> parse -> review -> add) ----------
 
 function ImportPanel({ legs, noteGroups, onApply }) {
@@ -1044,6 +1179,15 @@ function summarizeTrip(trip) {
       "Saved lists/notes: " + trip.sections.map((s) => `"${s.title}" (${legLabel(s.region)}, ${s.items.length} item${s.items.length === 1 ? "" : "s"})`).join("; ")
     );
   }
+  if (trip.budget && Array.isArray(trip.budget.categories) && trip.budget.categories.length) {
+    const currency = trip.budget.currency || "$";
+    const budgetLines = trip.budget.categories.map((c) => {
+      const spent = (c.items || []).reduce((sum, i) => sum + parseAmount(i.amount), 0);
+      const budgeted = parseAmount(c.budgeted);
+      return `${c.name}: ${currency}${spent} spent${budgeted ? ` of ${currency}${budgeted} budgeted` : ""}`;
+    });
+    lines.push("Budget: " + budgetLines.join("; "));
+  }
   return lines.join("\n");
 }
 
@@ -1232,6 +1376,10 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
         ...bc,
         entries: bc.entries.map((b) => (b.region === id ? { ...b, region: "general" } : b)),
       })),
+      budget: {
+        ...t.budget,
+        categories: (t.budget.categories || []).map((c) => (c.region === id ? { ...c, region: "general" } : c)),
+      },
     }));
   };
 
@@ -1362,6 +1510,36 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
     updateTrip((t) => ({ ...t, bookingCategories: (t.bookingCategories || []).filter((bc) => bc.id !== id) }));
     if (tab === `booking:${id}`) setTab("itinerary");
   };
+
+  const setBudgetCurrency = (currency) => updateTrip((t) => ({ ...t, budget: { ...t.budget, currency } }));
+  const addBudgetCategory = (region) =>
+    updateTrip((t) => ({ ...t, budget: { ...t.budget, categories: [...t.budget.categories, budgetCategory("New category", region)] } }));
+  const updateBudgetCategory = (id, field, val) =>
+    updateTrip((t) => ({ ...t, budget: { ...t.budget, categories: t.budget.categories.map((c) => (c.id === id ? { ...c, [field]: val } : c)) } }));
+  const deleteBudgetCategory = (id) => {
+    if (!window.confirm("Delete this budget category and its expenses? This can't be undone.")) return;
+    updateTrip((t) => ({ ...t, budget: { ...t.budget, categories: t.budget.categories.filter((c) => c.id !== id) } }));
+  };
+  const addBudgetItem = (categoryId) =>
+    updateTrip((t) => ({
+      ...t,
+      budget: { ...t.budget, categories: t.budget.categories.map((c) => (c.id === categoryId ? { ...c, items: [...c.items, budgetItem("", "")] } : c)) },
+    }));
+  const updateBudgetItem = (categoryId, itemId, field, val) =>
+    updateTrip((t) => ({
+      ...t,
+      budget: {
+        ...t.budget,
+        categories: t.budget.categories.map((c) =>
+          c.id === categoryId ? { ...c, items: c.items.map((i) => (i.id === itemId ? { ...i, [field]: val } : i)) } : c
+        ),
+      },
+    }));
+  const deleteBudgetItem = (categoryId, itemId) =>
+    updateTrip((t) => ({
+      ...t,
+      budget: { ...t.budget, categories: t.budget.categories.map((c) => (c.id === categoryId ? { ...c, items: c.items.filter((i) => i.id !== itemId) } : c)) },
+    }));
 
   const applyImportResults = (result, selections) => {
     if (!result) return;
@@ -1878,6 +2056,21 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
           entries={trip.bookings.experiences} noteGroups={noteGroups} onAdd={addBooking} onUpdate={updateBooking} onDelete={deleteBooking}
           onAddFromSearch={addBookingFromSearch}
           isOpen={isSectionOpen} onToggle={toggleSection}
+        />
+      )}
+      {tab === "budget" && (
+        <BudgetPanel
+          trip={trip}
+          noteGroups={noteGroups}
+          onSetCurrency={setBudgetCurrency}
+          onAddCategory={addBudgetCategory}
+          onUpdateCategory={updateBudgetCategory}
+          onDeleteCategory={deleteBudgetCategory}
+          onAddItem={addBudgetItem}
+          onUpdateItem={updateBudgetItem}
+          onDeleteItem={deleteBudgetItem}
+          isOpen={isSectionOpen}
+          onToggle={toggleSection}
         />
       )}
       {tab === "import" && <ImportPanel legs={trip.legs} noteGroups={noteGroups} onApply={applyImportResults} />}
