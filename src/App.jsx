@@ -25,7 +25,7 @@ const TABS = [
 const uid = () => Math.random().toString(36).slice(2, 9);
 const it = (text) => ({ id: uid(), text, checked: false });
 const DEFAULT_DAY_SECTION_TITLES = ["Hotel", "Restaurants", "Experiences", "Sights", "Travel", "Notes"];
-const dayItem = (time, text) => ({ id: uid(), time: time || "", text: text || "", checked: false });
+const dayItem = (address, text) => ({ id: uid(), address: address || "", text: text || "", checked: false });
 const daySection = (title, items) => ({ id: uid(), title, items: items || [] });
 const day = (date, region, plan) => ({
   id: uid(),
@@ -154,7 +154,13 @@ function migrateDayShape(d) {
     sections = d.sections.map((s) => ({
       id: s.id || uid(),
       title: s.title || "Untitled",
-      items: (s.items || []).map((i) => ({ id: i.id || uid(), time: i.time || "", text: i.text || "", checked: !!i.checked })),
+      items: (s.items || []).map((i) => {
+        // Older items had a "time" field where this now holds an "address" --
+        // fold any existing time into the details text instead of dropping it.
+        const legacyTime = (i.time || "").trim();
+        const text = legacyTime ? `${legacyTime} \u2014 ${i.text || ""}`.trim() : i.text || "";
+        return { id: i.id || uid(), address: i.address || "", text, checked: !!i.checked };
+      }),
     }));
   } else {
     sections = ORIGINAL_DEFAULT_DAY_SECTION_TITLES.map((t) => daySection(t));
@@ -182,17 +188,13 @@ function migrateDayShape(d) {
 }
 
 // Converts a day from the brief spreadsheet-table format (trip-wide columns +
-// per-day text cells) back into per-day sections, splitting each cell's text
-// back into items and pulling a leading time off each line where present.
+// per-day text cells) back into per-day sections, one item per line.
 function cellTextToItems(text) {
   return (text || "")
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)
-    .map((line) => {
-      const m = line.match(/^(\d{1,2}(:\d{2})?\s?(AM|PM|am|pm))\s*[\u2014\u2013:-]\s*(.*)$/);
-      return m ? dayItem(m[1], m[4]) : dayItem("", line);
-    });
+    .map((line) => dayItem("", line));
 }
 function spreadsheetDayToSections(d, columns) {
   return {
@@ -1614,7 +1616,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
           if (x.id !== id) return x;
           let nextSections = [...x.sections];
           placements.forEach((p) => {
-            const newItems = (Array.isArray(p.items) ? p.items : []).map((it) => dayItem(it.time || "", it.text || ""));
+            const newItems = (Array.isArray(p.items) ? p.items : []).map((it) => dayItem("", it.text || ""));
             if (newItems.length === 0) return;
             const idx = nextSections.findIndex((s) => s.title.toLowerCase() === String(p.title || "").toLowerCase());
             if (idx >= 0) {
@@ -1909,12 +1911,25 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
                                   <div key={item.id} className="flex items-start gap-1.5">
                                     <Stamp checked={item.checked} onClick={() => toggleDayItem(d.id, section.id, item.id)} color={BRASS} />
                                     <input
-                                      value={item.time}
-                                      onChange={(e) => updateDayItem(d.id, section.id, item.id, "time", e.target.value)}
-                                      placeholder="time"
+                                      value={item.address || ""}
+                                      onChange={(e) => updateDayItem(d.id, section.id, item.id, "address", e.target.value)}
+                                      placeholder="address"
                                       className="outline-none bg-transparent"
-                                      style={{ width: 54, flexShrink: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: PAPER_TEXT, paddingTop: 3 }}
+                                      style={{ width: 76, flexShrink: 0, fontSize: 10.5, color: PAPER_TEXT, paddingTop: 3 }}
                                     />
+                                    {(item.address || "").trim() && (
+                                      <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address)}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        title="Open in Google Maps"
+                                        aria-label="Open in Google Maps"
+                                        className="shrink-0"
+                                        style={{ paddingTop: 4 }}
+                                      >
+                                        <MapPin size={12} color={BRASS} />
+                                      </a>
+                                    )}
                                     <AutoNote
                                       value={item.text}
                                       onChange={(v) => updateDayItem(d.id, section.id, item.id, "text", v)}

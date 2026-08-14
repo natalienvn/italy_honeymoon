@@ -7,12 +7,12 @@ This day currently has these sections: ${titleList}.
 
 Read the notes and sort each activity or item into the single most appropriate section from that exact list. If something genuinely doesn't fit any of them, put it in a section called "Notes" instead (even though "Notes" isn't one of the given sections).
 
-For each item, pull out a time if one is stated or clearly implied (formatted like "9:00 AM"), and a short description of the activity. If no time applies, leave time as "".
+For each item, write a short description of the activity. Where a time is stated or clearly implied, include it naturally at the start of the description (e.g. "9:00 AM \u2014 Colosseum guided tour").
 
 Respond with ONLY a JSON object (no markdown fences, no commentary) in this exact shape:
 {
   "sections": [
-    { "title": "<one of the exact section names given, or \"Notes\">", "items": [{ "time": "", "text": "" }] }
+    { "title": "<one of the exact section names given, or \"Notes\">", "items": [{ "text": "" }] }
   ]
 }
 
