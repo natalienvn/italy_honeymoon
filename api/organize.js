@@ -1,18 +1,19 @@
 function buildSystemPrompt(sectionTitles) {
-  const titles = Array.isArray(sectionTitles) && sectionTitles.length ? sectionTitles : ["Hotel", "Restaurants", "Experiences", "Sights", "Travel", "Notes"];
+  const titles = Array.isArray(sectionTitles) && sectionTitles.length ? sectionTitles : ["Activities", "Food", "Extra"];
   const titleList = titles.map((t) => `"${t}"`).join(", ");
+  const fallback = titles.find((t) => t.trim().toLowerCase() === "extra") || titles[titles.length - 1];
   return `You help sort a traveler's rough, freeform notes about a single day of a trip into structured sections.
 
 This day currently has these sections: ${titleList}.
 
-Read the notes and sort each activity or item into the single most appropriate section from that exact list. If something genuinely doesn't fit any of them, put it in a section called "Notes" instead (even though "Notes" isn't one of the given sections).
+Read the notes and sort each activity or item into the single most appropriate section from that exact list. If something genuinely doesn't fit any of the more specific sections, put it in "${fallback}" instead, since that's meant as the catch-all.
 
 For each item, write a short description of the activity. Where a time is stated or clearly implied, include it naturally at the start of the description (e.g. "9:00 AM \u2014 Colosseum guided tour").
 
 Respond with ONLY a JSON object (no markdown fences, no commentary) in this exact shape:
 {
   "sections": [
-    { "title": "<one of the exact section names given, or \"Notes\">", "items": [{ "text": "" }] }
+    { "title": "<one of the exact section names given>", "items": [{ "text": "" }] }
   ]
 }
 

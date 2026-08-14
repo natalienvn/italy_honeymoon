@@ -80,17 +80,17 @@ once here when you know what something actually cost.
 
 ## Day structure
 
-Each day breaks down into editable sections — Hotel, Restaurants,
-Experiences, Sights, and Travel by default — and you can rename, delete, or
-add your own (click "+ Add section"). Every entry in a section has its own
-time field plus a details field, so you get real per-day timing instead of
-one big note.
+Each day has a one-line **Hotel** field for where you're staying that
+night, plus three broad, editable sections below it — **Activities**,
+**Food**, and **Extra** as a catch-all — and you can rename, delete, or add
+your own (click "+ Add section"). Every entry has an address field (click
+the pin that appears once you fill one in to open it in Google Maps) plus a
+details field.
 
-There's still a quick brain-dump box on each day: type freely, hit "Organize
-into sections," and Claude sorts what you wrote into the right sections
-automatically (matching whatever sections that day actually has, including
-ones you've renamed or added). Anything it can't place lands in a "Notes"
-section instead of getting lost.
+There's a quick brain-dump box on each day: type freely, hit "Organize into
+sections," and Claude sorts what you wrote into whatever sections that day
+actually has (including ones you've renamed or added), landing anything
+that doesn't fit into "Extra" rather than losing it.
 
 ## Suggestions & chat
 

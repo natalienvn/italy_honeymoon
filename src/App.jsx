@@ -24,7 +24,7 @@ const TABS = [
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const it = (text) => ({ id: uid(), text, checked: false });
-const DEFAULT_DAY_SECTION_TITLES = ["Hotel", "Restaurants", "Experiences", "Sights", "Travel", "Notes"];
+const DEFAULT_DAY_SECTION_TITLES = ["Activities", "Food", "Extra"];
 const dayItem = (address, text) => ({ id: uid(), address: address || "", text: text || "", checked: false });
 const daySection = (title, items) => ({ id: uid(), title, items: items || [] });
 const day = (date, region, plan) => ({
@@ -32,6 +32,7 @@ const day = (date, region, plan) => ({
   date,
   region,
   plan,
+  hotel: "",
   notes: "",
   sections: DEFAULT_DAY_SECTION_TITLES.map((t) => daySection(t)),
 });
@@ -213,6 +214,50 @@ function spreadsheetDayToSections(d, columns) {
   };
 }
 
+// One-time consolidation: earlier versions of this app used six sections per
+// day (Hotel, Restaurants, Experiences, Sights, Travel, Notes). This folds
+// that down to three (Activities, Food, Extra) plus a dedicated one-line
+// "hotel" field, without losing anything already written -- every old
+// section's items land somewhere in the new structure. Already-consolidated
+// days (or brand new ones) pass through unchanged.
+const OLD_TO_NEW_SECTION = {
+  restaurants: "Food",
+  experiences: "Activities",
+  sights: "Activities",
+  travel: "Extra",
+  notes: "Extra",
+};
+function consolidateDaySections(d) {
+  const sections = d.sections || [];
+  const hotelSection = sections.find((s) => (s.title || "").trim().toLowerCase() === "hotel");
+  const extractedHotel = hotelSection
+    ? hotelSection.items
+        .map((i) => i.text)
+        .filter(Boolean)
+        .join("; ")
+    : "";
+  const hotel = d.hotel || extractedHotel || "";
+
+  const buckets = { Activities: [], Food: [], Extra: [] };
+  sections.forEach((s) => {
+    const key = (s.title || "").trim().toLowerCase();
+    if (key === "hotel") return;
+    let target;
+    if (key === "activities" || key === "food" || key === "extra") {
+      target = key === "activities" ? "Activities" : key === "food" ? "Food" : "Extra";
+    } else {
+      target = OLD_TO_NEW_SECTION[key] || "Extra";
+    }
+    buckets[target] = [...buckets[target], ...s.items];
+  });
+
+  return {
+    ...d,
+    hotel,
+    sections: DEFAULT_DAY_SECTION_TITLES.map((title) => daySection(title, buckets[title])),
+  };
+}
+
 // Makes sure every day has the standard section set (without disturbing
 // anything already there, custom sections included).
 function ensureDefaultSections(d) {
@@ -235,6 +280,7 @@ function migrateTripShape(t) {
     // Already-sectioned shape, or the oldest raw-notes shape.
     days = (t.days || []).map(migrateDayShape);
   }
+  days = days.map(consolidateDaySections);
   days = days.map(ensureDefaultSections);
 
   return {
@@ -1214,11 +1260,12 @@ function summarizeTrip(trip) {
     lines.push("Day-by-day plan:");
     trip.days.forEach((d, i) => {
       const parts = [];
+      if ((d.hotel || "").trim()) parts.push(`Hotel: ${d.hotel.trim()}`);
       if (d.plan) parts.push(d.plan);
       (d.sections || []).forEach((s) => {
         if (s.items && s.items.length) {
           const entries = s.items
-            .map((it) => `${it.time ? it.time + " " : ""}${it.text}`.trim())
+            .map((it) => (it.text || "").trim())
             .filter(Boolean)
             .join("; ");
           if (entries) parts.push(`${s.title}: ${entries}`);
@@ -1686,7 +1733,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
             if (idx >= 0) {
               nextSections = nextSections.map((s, i) => (i === idx ? { ...s, items: [...s.items, ...newItems] } : s));
             } else {
-              nextSections = [...nextSections, daySection(p.title || "Notes", newItems)];
+              nextSections = [...nextSections, daySection(p.title || "Extra", newItems)];
             }
           });
           return { ...x, sections: nextSections };
@@ -1919,7 +1966,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
 
                   <div style={{ padding: "6px 12px 10px 12px", borderTop: "1px solid #8A7B5C22" }}>
                     <button onClick={() => toggleExpand(d.id)} className="flex items-center gap-1.5" style={{ fontSize: 11.5, color: "#8A7B5C", fontWeight: 500 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: d.sections.some((s) => s.items.length > 0) ? BRASS : "transparent", flexShrink: 0 }} />
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: (d.hotel || "").trim() || d.sections.some((s) => s.items.length > 0) ? BRASS : "transparent", flexShrink: 0 }} />
                       <FileText size={12} />
                       Day details
                       {u.expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -1927,6 +1974,15 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
 
                     {u.expanded && (
                       <div className="mt-2">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span style={{ fontSize: 11, color: "#8A7B5C", flexShrink: 0 }}>Hotel:</span>
+                          <Field
+                            value={d.hotel || ""}
+                            onChange={(v) => updateDay(d.id, "hotel", v)}
+                            placeholder="Where you're staying tonight"
+                            style={{ fontSize: 12.5, color: PAPER_TEXT }}
+                          />
+                        </div>
                         <textarea
                           value={d.notes || ""}
                           onChange={(e) => updateDay(d.id, "notes", e.target.value)}
