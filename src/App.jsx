@@ -2641,7 +2641,7 @@ export default function App() {
 
   return (
     <div style={{ background: INK, minHeight: "100vh" }} data-view={isMobile ? "mobile" : "desktop"} data-forced={forcedNarrow ? "1" : "0"}>
-      <div style={{ color: PAPER, fontFamily: "'Inter', sans-serif", maxWidth: forcedNarrow ? 430 : 980, margin: "0 auto", padding: isMobile ? "14px 14px 110px" : "24px 20px 60px" }} className="w-full">
+      <div style={{ color: PAPER, fontFamily: "'Inter', sans-serif", maxWidth: forcedNarrow ? 430 : 980, margin: "0 auto", padding: isMobile ? "calc(env(safe-area-inset-top) + 14px) calc(env(safe-area-inset-right) + 14px) 110px calc(env(safe-area-inset-left) + 14px)" : "calc(env(safe-area-inset-top) + 24px) 20px 60px" }} className="w-full">
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
           .fx-fraunces { font-family: 'Fraunces', serif; }
