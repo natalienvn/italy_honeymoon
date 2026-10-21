@@ -251,9 +251,12 @@ export function useCloudSync({ data, setData, ready, isStarter, migrate }) {
   const syncOnce = useCallback(async () => {
     const c = cfgRef.current;
     if (!c) return;
+    let handedOver = null; // the cloud copy the server sent back with a conflict; use it instead of asking again
+    let lastDetail = "";
     for (let attempt = 0; attempt < 8; attempt++) {
       const local = dataRef.current;
-      const pulled = await callApi({ action: "pull", code: c.code });
+      const pulled = handedOver || (await callApi({ action: "pull", code: c.code }));
+      handedOver = null;
       const remote = pulled.data ? migrateRef.current(pulled.data) : null;
       if (!cfgRef.current || cfgRef.current.code !== c.code) return; // code changed while we were talking to the server
 
@@ -293,13 +296,18 @@ export function useCloudSync({ data, setData, ready, isStarter, migrate }) {
       }
 
       const pushed = await callApi({ action: "push", code: c.code, baseRev: pulled.rev, data: target });
-      if (pushed.conflict) continue; // someone saved in between; pull and merge again
+      if (pushed.conflict) {
+        // someone saved in between (or the server disagreed): merge against the copy it just sent
+        lastDetail = ` (cloud revision ${pushed.rev}, mine ${pulled.rev})`;
+        handedOver = { rev: pushed.rev, data: pushed.data };
+        continue;
+      }
       writeBase(target);
       writeCfg({ code: c.code, rev: pushed.rev });
       setLastSynced(new Date());
       return;
     }
-    throw Object.assign(new Error("Couldn't finish syncing after several tries."), { kind: "error" });
+    throw Object.assign(new Error("Couldn't finish syncing after several tries." + lastDetail), { kind: "error" });
   }, []);
 
   const run = useCallback(async () => {

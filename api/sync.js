@@ -116,18 +116,25 @@ export function makeHandler(getStorage) {
           }
         }
 
-        const w = await storage.write(current, text, existing ? { ifMatch: existing.etag } : { createOnly: true });
-        if (!w.ok) {
-          // Someone saved between our read and write: report the newer copy so the client can merge.
-          const again = await storage.read(current);
-          let d2 = null;
+        let w = await storage.write(current, text, existing ? { ifMatch: existing.etag } : { createOnly: true });
+        const parse = (r) => {
           try {
-            d2 = again ? JSON.parse(again.text) : null;
+            return r ? JSON.parse(r.text) : null;
           } catch {
-            d2 = null;
+            return null;
           }
-          res.status(409).json({ rev: d2 ? d2.rev : 0, data: d2 ? d2.data : null });
-          return;
+        };
+        if (!w.ok) {
+          const again = await storage.read(current);
+          const d2 = parse(again);
+          if (existing && d2 && d2.rev === serverRev) {
+            // The revision hasn't moved, so nobody else saved: the ETag check was a false alarm. Write plainly.
+            w = await storage.write(current, text, {});
+          }
+          if (!w.ok) {
+            res.status(409).json({ rev: d2 ? d2.rev : 0, data: d2 ? d2.data : null });
+            return;
+          }
         }
         res.status(200).json({ rev: next.rev });
         return;
