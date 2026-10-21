@@ -134,29 +134,29 @@ Supported file types: **PDF, Word (.docx), images (PNG/JPG), and plain text
 isn't supported directly — copy the relevant text out and paste it into the
 text box instead, which works for basically anything you can select and copy.
 
-## Saving
+## Saving & cloud sync
 
-Everything (all your trips) is saved to your browser's `localStorage` — no
-account or database needed. It saves automatically about half a second after
-you stop typing, **and** it force-saves the moment you close the tab,
-refresh, or switch away, so nothing you've typed is ever lost in a normal
-browser session.
+Every change is saved on the device instantly (browser `localStorage`) and, once
+sync is on, to a private Vercel Blob store a moment later. Every device that uses
+the same sync code shows the same trips.
 
-**Important caveat:** this only works if your browser actually keeps
-`localStorage` around. If you're in a private/incognito window, or your
-browser is set to clear cookies and site data on close (common in Safari,
-Brave, and privacy-hardened Chrome/Firefox setups), everything gets wiped the
-moment you close the window — no code can prevent that, since the browser
-itself is deleting the storage.
+**One-time setup (Vercel dashboard):** open the project, then **Storage → Create →
+Blob**, choose **Private**, connect it to this project, and **redeploy**.
 
-To protect against that, there are **Export backup** / **Import backup**
-buttons at the top of the app (works from the home page or inside a trip —
-it backs up everything, all trips at once). If the app ever shows a red
-"changes aren't saving" banner, export a backup right away.
+**Per device:** click **Turn on sync** in the app. On the device that has your real
+trips, do this first, then use **Copy link for another device** and open that link
+once on your phone/other computer. Always use the same website address everywhere.
 
-It's also worth knowing storage is per-browser, per-device — it won't follow
-you to a different browser or computer. Use Export if you want to move your
-data somewhere else, or just to be safe.
+How it stays safe:
+- Edits are merged, never overwritten: if two devices change different things, both
+  changes are kept. If they change the very same field, the cloud version stays and
+  yours is saved as a separate "(other device copy)" trip.
+- A device that only has the untouched starter trip never overwrites the cloud.
+- The cloud keeps the previous version plus a daily snapshot (`previous.json`,
+  `snapshot-YYYY-MM-DD.json`) in the Blob store.
+- Offline? Changes stay on the device and sync when you're back online.
+
+**Download / restore** (in the sync panel) still exists as an optional file backup.
 
 ## Stack
 

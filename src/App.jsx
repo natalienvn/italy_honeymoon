@@ -3,8 +3,10 @@ import {
   Plane, Plus, Trash2, ChevronUp, ChevronDown, MapPin,
   FolderPlus, Check, Sparkles, Loader2, FileText,
   BedDouble, UtensilsCrossed, Ticket, Download, Upload, AlertTriangle, FileUp, X,
-  ArrowLeft, Tag, Bookmark, Folder, Search, Send, Wallet, RefreshCw
+  ArrowLeft, Tag, Bookmark, Folder, Search, Send, Wallet, RefreshCw,
+  Cloud, CloudOff, Copy
 } from "lucide-react";
+import { useCloudSync, generateCode, looksLikeStarter } from "./sync.js";
 
 // ---------- constants & small factories ----------
 
@@ -190,6 +192,7 @@ function migrateDayShape(d) {
     region: d.region || "travel",
     plan: d.plan || "",
     notes: d.notes || "",
+    hotel: d.hotel || "",
     sections,
   };
 }
@@ -210,6 +213,7 @@ function spreadsheetDayToSections(d, columns) {
     region: d.region || "travel",
     plan: d.plan || "",
     notes: d.notes || "",
+    hotel: d.hotel || "",
     sections: columns.map((c) => daySection(c.label, cellTextToItems((d.cells && d.cells[c.id]) || ""))),
   };
 }
@@ -251,10 +255,17 @@ function consolidateDaySections(d) {
     buckets[target] = [...buckets[target], ...s.items];
   });
 
+  // Keep each section's existing id (or derive a stable one from the day's id) so that
+  // loading the same data twice -- or on two devices -- gives identical results. Random ids
+  // here would look like brand-new sections to cloud sync.
+  const idFor = (title) => {
+    const found = sections.find((s) => s.id && (s.title || "").trim().toLowerCase() === title.toLowerCase());
+    return found ? found.id : `${d.id || "day"}~${title.toLowerCase()}`;
+  };
   return {
     ...d,
     hotel,
-    sections: DEFAULT_DAY_SECTION_TITLES.map((title) => daySection(title, buckets[title])),
+    sections: DEFAULT_DAY_SECTION_TITLES.map((title) => ({ id: idFor(title), title, items: buckets[title] })),
   };
 }
 
@@ -263,10 +274,11 @@ function consolidateDaySections(d) {
 function ensureDefaultSections(d) {
   const existing = new Set((d.sections || []).map((s) => (s.title || "").trim().toLowerCase()));
   const missing = DEFAULT_DAY_SECTION_TITLES.filter((t) => !existing.has(t.toLowerCase()));
-  return { ...d, sections: [...(d.sections || []), ...missing.map((t) => daySection(t))] };
+  return { ...d, sections: [...(d.sections || []), ...missing.map((t) => ({ id: `${d.id || "day"}~${t.toLowerCase()}`, title: t, items: [] }))] };
 }
 
 function migrateTripShape(t) {
+  t = { ...t, id: t.id || uid() };
   const legs = Array.isArray(t.legs) ? t.legs : [];
   const validIds = [...legs.map((l) => l.id), "general"];
   const fixSections = (secs) => (secs || []).map((s) => ({ ...s, region: validIds.includes(s.region) ? s.region : "general" }));
@@ -319,7 +331,7 @@ function migrateTripShape(t) {
               budgeted: c.budgeted || "",
               items: (c.items || []).map((i) => ({ id: i.id || uid(), name: i.name || "", amount: i.amount || "" })),
             }))
-          : DEFAULT_BUDGET_CATEGORY_NAMES.map((n) => budgetCategory(n, "general")),
+          : DEFAULT_BUDGET_CATEGORY_NAMES.map((n) => ({ ...budgetCategory(n, "general"), id: `${t.id}~budget~${n.toLowerCase()}` })),
     },
   };
 }
@@ -370,29 +382,29 @@ function migrateRoot(loaded) {
   return null;
 }
 
-function loadInitial() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const migrated = migrateRoot(JSON.parse(raw));
-      if (migrated) return migrated;
-    }
-  } catch {
-    // fall through
-  }
-  try {
-    const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (legacyRaw) {
-      const migrated = migrateRoot(JSON.parse(legacyRaw));
-      if (migrated) return migrated;
-    }
-  } catch {
-    // fall through
-  }
+function makeStarterRoot() {
   return { folders: [{ id: uid(), name: DEFAULT_FOLDER_NAME, trips: [makeItalyTrip()] }] };
 }
 
-function useDebouncedSave(data, ready) {
+// Returns { data, starter }. starter = true when this device has nothing of its own yet
+// (or only the untouched starter trip), so a cloud copy should replace it rather than merge with it.
+function loadInitial() {
+  const seed = makeStarterRoot();
+  const tryKey = (key) => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) return migrateRoot(JSON.parse(raw));
+    } catch {
+      // fall through
+    }
+    return null;
+  };
+  const found = tryKey(STORAGE_KEY) || tryKey(LEGACY_STORAGE_KEY);
+  if (found) return { data: found, starter: looksLikeStarter(found, seed) };
+  return { data: seed, starter: true };
+}
+
+function useDebouncedSave(data, ready, untouchedRef) {
   const [status, setStatus] = useState("idle");
   const timer = useRef(null);
   const dataRef = useRef(data);
@@ -400,6 +412,7 @@ function useDebouncedSave(data, ready) {
 
   useEffect(() => {
     if (!ready) return;
+    if (untouchedRef && untouchedRef.current === data) return; // never store the untouched starter copy
     setStatus("saving");
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -415,6 +428,7 @@ function useDebouncedSave(data, ready) {
 
   useEffect(() => {
     const flush = () => {
+      if (untouchedRef && untouchedRef.current === dataRef.current) return;
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(dataRef.current));
       } catch {
@@ -2377,17 +2391,127 @@ function HomeView({ folders, onOpen, onCreate, onDelete }) {
   );
 }
 
+// ---------- cloud sync panel ----------
+
+function SyncPanel({ sync, status, onExport, onImport, onClose, colors }) {
+  const { INK, PAPER, BRASS, MUTED } = colors;
+  const [typed, setTyped] = useState("");
+  const [copied, setCopied] = useState("");
+  const [showCode, setShowCode] = useState(false);
+
+  const copy = async (text, what) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(what);
+      setTimeout(() => setCopied(""), 2000);
+    } catch {
+      window.prompt("Copy this:", text);
+    }
+  };
+  const link = sync.code ? `${window.location.origin}/#sync=${sync.code}` : "";
+  const btn = { fontSize: 12.5, color: PAPER, border: `1px solid ${MUTED}55`, borderRadius: 8, padding: "7px 12px" };
+  const primary = { fontSize: 12.5, color: INK, background: BRASS, border: `1px solid ${BRASS}`, borderRadius: 8, padding: "7px 12px", fontWeight: 600 };
+  const problem = ["error", "not_configured", "no_api"].includes(sync.state);
+
+  return (
+    <div style={{ background: "#26303F", border: `1px solid ${MUTED}44`, borderRadius: 10, padding: 16, marginBottom: 18, color: PAPER }}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="fx-fraunces" style={{ fontSize: 17 }}>Sync across devices</div>
+        <button onClick={onClose} aria-label="Close" style={{ color: MUTED }}><X size={16} /></button>
+      </div>
+
+      {!sync.code && (
+        <div>
+          <p style={{ fontSize: 13, color: MUTED, lineHeight: 1.5, marginBottom: 12 }}>
+            Sync keeps one copy of your trips in the cloud. Every device that uses the same sync code shows the same trips and saves automatically &mdash; no files, no exporting.
+            Turn it on here first (on the device that has your real trips), then link your other devices.
+          </p>
+          <button style={primary} onClick={() => sync.enable(generateCode())}>Turn on sync on this device</button>
+          <div style={{ marginTop: 16, fontSize: 12, color: MUTED }}>Already have a sync code from another device?</div>
+          <div className="flex gap-2 mt-1.5 flex-wrap">
+            <input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder="xxxx-xxxx-xxxx-xxxx"
+              style={{ background: INK, color: PAPER, border: `1px solid ${MUTED}55`, borderRadius: 8, padding: "7px 10px", fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", minWidth: 220 }}
+            />
+            <button style={btn} onClick={() => sync.enable(typed)} disabled={typed.trim().length < 8}>Connect</button>
+          </div>
+        </div>
+      )}
+
+      {sync.code && (
+        <div>
+          <div style={{ fontSize: 13, marginBottom: 6, color: problem ? "#E8A090" : PAPER }}>
+            {sync.state === "syncing" && "Syncing…"}
+            {sync.state === "synced" && "Synced — changes on any linked device save automatically."}
+            {sync.state === "offline" && "You're offline. Changes are saved on this device and will sync when you're back online."}
+            {sync.state === "not_configured" && "Cloud storage isn't connected to this site yet."}
+            {sync.state === "no_api" && "The sync service wasn't found on this site. Open your deployed site (not a local preview)."}
+            {sync.state === "error" && (sync.message || "Sync problem.")}
+          </div>
+          {sync.state === "synced" && sync.message && <div style={{ fontSize: 12, color: BRASS, marginBottom: 8 }}>{sync.message}</div>}
+          {sync.state === "not_configured" && (
+            <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.6, marginBottom: 10 }}>
+              In Vercel: open this project &rarr; <strong>Storage</strong> &rarr; <strong>Create</strong> &rarr; <strong>Blob</strong> (choose <strong>Private</strong>) &rarr; connect it to this project, then redeploy.
+            </div>
+          )}
+
+          <div style={{ fontSize: 12, color: MUTED, marginTop: 10 }}>To link your phone or another device, open this link on it once:</div>
+          <div className="flex gap-2 mt-1.5 flex-wrap">
+            <button style={primary} onClick={() => copy(link, "link")}>
+              <span className="flex items-center gap-1.5"><Copy size={13} /> {copied === "link" ? "Copied!" : "Copy link for another device"}</span>
+            </button>
+            <button style={btn} onClick={() => setShowCode((v) => !v)}>{showCode ? "Hide code" : "Show code"}</button>
+          </div>
+          {showCode && (
+            <div style={{ marginTop: 8, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, background: INK, borderRadius: 8, padding: "8px 10px", wordBreak: "break-all" }}>
+              {sync.code}
+              <button onClick={() => copy(sync.code, "code")} style={{ marginLeft: 10, color: BRASS, fontSize: 12 }}>{copied === "code" ? "copied" : "copy"}</button>
+            </div>
+          )}
+          <p style={{ fontSize: 11.5, color: MUTED, marginTop: 8, lineHeight: 1.5 }}>
+            Anyone with this link or code can see and edit your trips, so keep it private. Always use the same website address on every device.
+          </p>
+
+          <div className="flex gap-2 mt-3 flex-wrap">
+            <button style={btn} onClick={() => sync.syncNow()}>Sync now</button>
+            <button style={{ ...btn, color: MUTED }} onClick={() => { if (window.confirm("Turn off sync on this device? Your trips stay here and in the cloud.")) sync.disable(); }}>Turn off on this device</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${MUTED}33`, fontSize: 11.5, color: MUTED }}>
+        <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+          {status === "saving" ? "saving on this device…" : status === "saved" ? "saved on this device" : ""}
+        </span>
+        <span style={{ margin: "0 8px" }}>&middot;</span>
+        Optional file backup:{" "}
+        <button onClick={onExport} style={{ textDecoration: "underline" }}>download</button>{" / "}
+        <button onClick={onImport} style={{ textDecoration: "underline" }}>restore</button>
+      </div>
+    </div>
+  );
+}
+
 // ---------- top-level app: folders of trips + persistence + backup ----------
 
 export default function App() {
-  const [data, setData] = useState(() => ({ folders: [{ id: uid(), name: DEFAULT_FOLDER_NAME, trips: [makeItalyTrip()] }] }));
+  const [data, setData] = useState(() => makeStarterRoot());
   const [ready, setReady] = useState(false);
+  const [isStarter, setIsStarter] = useState(false);
   const [folderId, setFolderId] = useState(null);
   const [tripId, setTripId] = useState(null);
-  const status = useDebouncedSave(data, ready);
+  const [showSync, setShowSync] = useState(false);
+  const untouchedRef = useRef(null);
+  const status = useDebouncedSave(data, ready, untouchedRef);
+  const sync = useCloudSync({ data, setData, ready, isStarter, migrate: (d) => migrateRoot(d) || d });
 
   useEffect(() => {
-    setData(loadInitial());
+    const loaded = loadInitial();
+    untouchedRef.current = loaded.starter ? loaded.data : null;
+    setIsStarter(loaded.starter);
+    setData(loaded.data);
     setReady(true);
   }, []);
 
@@ -2468,24 +2592,59 @@ export default function App() {
         `}</style>
 
         <div className="flex items-center justify-end gap-2 mb-4 flex-wrap">
-          <span style={{ fontSize: 11, color: MUTED, fontFamily: "'IBM Plex Mono', monospace", minWidth: 70, textAlign: "right" }}>
-            {status === "saving" ? "saving…" : status === "saved" ? "all changes saved" : status === "error" ? "save failed" : ""}
-          </span>
-          <button onClick={exportBackup} className="flex items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity" style={{ fontSize: 12, color: PAPER, border: `1px solid ${MUTED}55`, borderRadius: 8, padding: "6px 10px" }}>
-            <Download size={13} /> Export backup
-          </button>
-          <input ref={importInputRef} type="file" accept="application/json" onChange={importBackup} style={{ display: "none" }} />
-          <button onClick={() => importInputRef.current && importInputRef.current.click()} className="flex items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity" style={{ fontSize: 12, color: PAPER, border: `1px solid ${MUTED}55`, borderRadius: 8, padding: "6px 10px" }}>
-            <Upload size={13} /> Import backup
+          <button
+            onClick={() => setShowSync((v) => !v)}
+            className="flex items-center gap-1.5"
+            style={{
+              fontSize: 12,
+              color: sync.code ? PAPER : INK,
+              background: sync.code ? "transparent" : BRASS,
+              border: `1px solid ${sync.code ? MUTED + "55" : BRASS}`,
+              borderRadius: 8,
+              padding: "6px 10px",
+              fontWeight: sync.code ? 400 : 600,
+            }}
+          >
+            {sync.code ? (sync.state === "offline" || sync.state === "error" || sync.state === "not_configured" || sync.state === "no_api" ? <CloudOff size={13} /> : <Cloud size={13} />) : <Cloud size={13} />}
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+              {!sync.code
+                ? "Turn on sync"
+                : sync.state === "syncing"
+                ? "syncing…"
+                : sync.state === "synced"
+                ? "synced"
+                : sync.state === "offline"
+                ? "offline"
+                : "sync problem"}
+            </span>
           </button>
         </div>
+
+        {showSync && (
+          <SyncPanel
+            sync={sync}
+            status={status}
+            onExport={exportBackup}
+            onImport={() => importInputRef.current && importInputRef.current.click()}
+            onClose={() => setShowSync(false)}
+            colors={{ INK, PAPER, BRASS, MUTED }}
+          />
+        )}
+        <input ref={importInputRef} type="file" accept="application/json" onChange={importBackup} style={{ display: "none" }} />
+
+        {!sync.code && ready && !showSync && (
+          <div style={{ background: "#26303F", border: `1px solid ${BRASS}66`, borderRadius: 8, padding: "10px 14px", fontSize: 12.5, marginBottom: 16, color: PAPER }}>
+            Your trips are saved on this device only. Turn on sync so your laptop and phone always show the same trips.{" "}
+            <button onClick={() => setShowSync(true)} style={{ color: BRASS, textDecoration: "underline" }}>Set it up</button>
+          </div>
+        )}
 
         {status === "error" && (
           <div className="flex items-center gap-2 mb-5" style={{ background: "#B5533C", color: "#F3ECDD", borderRadius: 8, padding: "10px 14px", fontSize: 12.5 }}>
             <AlertTriangle size={15} style={{ flexShrink: 0 }} />
             <span>
               Changes aren't saving in this browser right now &mdash; storage may be blocked or you're in a private/incognito
-              window. Click <strong>Export backup</strong> to save a file you can re-import later, so nothing gets lost.
+              window. Turn on <strong>sync</strong> so your trips are kept in the cloud instead.
             </span>
           </div>
         )}
