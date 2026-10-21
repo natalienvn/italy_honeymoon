@@ -134,6 +134,12 @@ Supported file types: **PDF, Word (.docx), images (PNG/JPG), and plain text
 isn't supported directly — copy the relevant text out and paste it into the
 text box instead, which works for basically anything you can select and copy.
 
+## Phone & desktop layouts
+
+The layout switches automatically by screen width: on a phone you get one column and a
+bottom tab bar, on a laptop the normal layout. The **Auto view** button at the top cycles
+Auto / Phone / Desktop (remembered per device).
+
 ## Saving & cloud sync
 
 Every change is saved on the device instantly (browser `localStorage`) and, once

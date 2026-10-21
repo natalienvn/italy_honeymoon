@@ -4,7 +4,7 @@ import {
   FolderPlus, Check, Sparkles, Loader2, FileText,
   BedDouble, UtensilsCrossed, Ticket, Download, Upload, AlertTriangle, FileUp, X,
   ArrowLeft, Tag, Bookmark, Folder, Search, Send, Wallet, RefreshCw,
-  Cloud, CloudOff, Copy
+  Cloud, CloudOff, Copy, Smartphone, Monitor, MonitorSmartphone
 } from "lucide-react";
 import { useCloudSync, generateCode, looksLikeStarter } from "./sync.js";
 
@@ -1772,7 +1772,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
           <Field
             value={trip.name}
             onChange={(v) => updateTrip((t) => ({ ...t, name: v }))}
-            className="fx-fraunces"
+            className="fx-fraunces fx-tripname"
             placeholder="Trip name"
             style={{ fontSize: 28, fontStyle: "italic", fontWeight: 500 }}
           />
@@ -1803,7 +1803,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
         </button>
       </div>
 
-      <div className="flex items-center gap-1.5 mb-7 flex-wrap" style={{ borderBottom: `1px solid ${MUTED}33`, paddingBottom: 12 }}>
+      <div className="flex items-center gap-1.5 mb-7 flex-wrap fx-desktop-only" style={{ borderBottom: `1px solid ${MUTED}33`, paddingBottom: 12 }}>
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = tab === t.id;
@@ -1904,6 +1904,40 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
         </div>
       </div>
 
+      <nav className="fx-bottomnav fx-mobile-only" aria-label="Sections">
+        {[
+          ...TABS.map((t) => ({ id: t.id, label: t.label, Icon: t.icon })),
+          ...(trip.customTabs || []).map((ct) => ({ id: `custom:${ct.id}`, label: ct.name || "New tab", Icon: Tag })),
+          ...(trip.bookingCategories || []).map((bc) => ({ id: `booking:${bc.id}`, label: bc.name || "New category", Icon: Bookmark })),
+        ].map(({ id, label, Icon }) => {
+          const active = tab === id;
+          return (
+            <button key={id} onClick={() => { setTab(id); window.scrollTo(0, 0); }} className="fx-navbtn" style={{ color: active ? BRASS : PAPER, opacity: active ? 1 : 0.6 }}>
+              <Icon size={19} />
+              <span>{label}</span>
+            </button>
+          );
+        })}
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <button onClick={() => setShowAddTabMenu((v) => !v)} className="fx-navbtn" aria-label="Add a new tab" style={{ color: PAPER, opacity: 0.6 }}>
+            <Plus size={19} />
+            <span>Add</span>
+          </button>
+          {showAddTabMenu && (
+            <div className="flex flex-col" style={{ position: "fixed", bottom: 76, right: 10, background: PAPER, borderRadius: 10, padding: 4, zIndex: 60, boxShadow: "0 6px 20px rgba(0,0,0,0.45)", width: 250 }}>
+              <button onClick={() => { addCustomTab(); setShowAddTabMenu(false); }} className="text-left" style={{ fontSize: 13, color: PAPER_TEXT, padding: "10px 12px", borderRadius: 6 }}>
+                <div style={{ fontWeight: 600 }}>List / checklist tab</div>
+                <div style={{ fontSize: 11, color: "#8A7B5C" }}>Freeform lists, grouped by destination</div>
+              </button>
+              <button onClick={() => { addBookingCategory(); setShowAddTabMenu(false); }} className="text-left" style={{ fontSize: 13, color: PAPER_TEXT, padding: "10px 12px", borderRadius: 6 }}>
+                <div style={{ fontWeight: 600 }}>Booking tab</div>
+                <div style={{ fontSize: 11, color: "#8A7B5C" }}>Name, dates, confirmation #, notes</div>
+              </button>
+            </div>
+          )}
+        </div>
+      </nav>
+
       {tab === "itinerary" && (
         <>
           <div className="grid gap-3 mb-7" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
@@ -1958,7 +1992,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
               const u = dayUi(d.id);
               return (
                 <div key={d.id} className="fx-row" style={{ background: PAPER, color: PAPER_TEXT, borderRadius: 10, borderLeft: `4px solid ${region.color}` }}>
-                  <div className="flex items-start gap-3" style={{ padding: "10px 12px 8px 12px" }}>
+                  <div className="flex items-start gap-3 fx-dayhead" style={{ padding: "10px 12px 8px 12px" }}>
                     <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: "#8A7B5C", width: 34, textAlign: "center", paddingTop: 3, flexShrink: 0 }}>
                       {String(realIdx + 1).padStart(2, "0")}
                     </div>
@@ -1970,7 +2004,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
                         <option key={r.id} value={r.id} style={{ color: "#2B2118" }}>{r.label}</option>
                       ))}
                     </select>
-                    <textarea value={d.plan} onChange={(e) => updateDay(d.id, "plan", e.target.value)} placeholder="Quick summary" rows={1} className="flex-1 bg-transparent outline-none resize-none text-sm" style={{ color: PAPER_TEXT, lineHeight: 1.4, paddingTop: 2 }} />
+                    <textarea value={d.plan} onChange={(e) => updateDay(d.id, "plan", e.target.value)} placeholder="Quick summary" rows={1} className="flex-1 bg-transparent outline-none resize-none text-sm fx-dayplan" style={{ color: PAPER_TEXT, lineHeight: 1.4, paddingTop: 2 }} />
                     <div className="fx-actions flex items-center gap-0.5" style={{ paddingTop: 1 }}>
                       <IconBtn title="Move up" onClick={() => moveDay(d.id, -1)}><ChevronUp size={15} color="#8A7B5C" /></IconBtn>
                       <IconBtn title="Move down" onClick={() => moveDay(d.id, 1)}><ChevronDown size={15} color="#8A7B5C" /></IconBtn>
@@ -2042,13 +2076,13 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
                               {section.items.length === 0 && <p style={{ fontSize: 11, color: "#8A7B5C", fontStyle: "italic", margin: 0 }}>Nothing yet</p>}
                               <div className="flex flex-col gap-1">
                                 {section.items.map((item) => (
-                                  <div key={item.id} className="flex items-start gap-1.5">
+                                  <div key={item.id} className="flex items-start gap-1.5 fx-itemrow">
                                     <Stamp checked={item.checked} onClick={() => toggleDayItem(d.id, section.id, item.id)} color={BRASS} />
                                     <input
                                       value={item.address || ""}
                                       onChange={(e) => updateDayItem(d.id, section.id, item.id, "address", e.target.value)}
                                       placeholder="address"
-                                      className="outline-none bg-transparent"
+                                      className="outline-none bg-transparent fx-addr"
                                       style={{ width: 76, flexShrink: 0, fontSize: 10.5, color: PAPER_TEXT, paddingTop: 3 }}
                                     />
                                     {(item.address || "").trim() && (
@@ -2058,7 +2092,7 @@ function TripPlanner({ trip, updateTrip, onBack, onDeleteTrip }) {
                                         rel="noreferrer"
                                         title="Open in Google Maps"
                                         aria-label="Open in Google Maps"
-                                        className="shrink-0"
+                                        className="shrink-0 fx-pin"
                                         style={{ paddingTop: 4 }}
                                       >
                                         <MapPin size={12} color={BRASS} />
@@ -2503,6 +2537,32 @@ export default function App() {
   const [folderId, setFolderId] = useState(null);
   const [tripId, setTripId] = useState(null);
   const [showSync, setShowSync] = useState(false);
+  const [viewPref, setViewPref] = useState(() => {
+    try {
+      const v = localStorage.getItem("travel-planner-view");
+      return v === "mobile" || v === "desktop" ? v : "auto";
+    } catch {
+      return "auto";
+    }
+  });
+  const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 720px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 720px)");
+    const onChange = (e) => setNarrow(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const cycleView = () => {
+    const next = viewPref === "auto" ? "mobile" : viewPref === "mobile" ? "desktop" : "auto";
+    setViewPref(next);
+    try {
+      localStorage.setItem("travel-planner-view", next);
+    } catch {
+      // ignore
+    }
+  };
+  const isMobile = viewPref === "mobile" || (viewPref === "auto" && narrow);
+  const forcedNarrow = viewPref === "mobile" && !narrow;
   const untouchedRef = useRef(null);
   const status = useDebouncedSave(data, ready, untouchedRef);
   const sync = useCloudSync({ data, setData, ready, isStarter, migrate: (d) => migrateRoot(d) || d });
@@ -2580,8 +2640,8 @@ export default function App() {
   const activeTrip = activeFolder && tripId ? activeFolder.trips.find((t) => t.id === tripId) : null;
 
   return (
-    <div style={{ background: INK, minHeight: "100vh" }}>
-      <div style={{ color: PAPER, fontFamily: "'Inter', sans-serif", maxWidth: 980, margin: "0 auto", padding: "24px 20px 60px" }} className="w-full">
+    <div style={{ background: INK, minHeight: "100vh" }} data-view={isMobile ? "mobile" : "desktop"} data-forced={forcedNarrow ? "1" : "0"}>
+      <div style={{ color: PAPER, fontFamily: "'Inter', sans-serif", maxWidth: forcedNarrow ? 430 : 980, margin: "0 auto", padding: isMobile ? "14px 14px 110px" : "24px 20px 60px" }} className="w-full">
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
           .fx-fraunces { font-family: 'Fraunces', serif; }
@@ -2589,9 +2649,43 @@ export default function App() {
           .fx-actions { opacity: 0.35; transition: opacity 0.15s; }
           input:focus-visible, button:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid ${BRASS}; outline-offset: 2px; }
           @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+          .fx-mobile-only { display: none; }
+          [data-view="mobile"] .fx-mobile-only { display: flex; }
+          [data-view="mobile"] .fx-desktop-only { display: none !important; }
+          .fx-bottomnav {
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; gap: 2px; align-items: stretch;
+            background: ${INK}; border-top: 1px solid ${MUTED}44; overflow-x: auto; -webkit-overflow-scrolling: touch;
+            padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); scrollbar-width: none;
+          }
+          .fx-bottomnav::-webkit-scrollbar { display: none; }
+          [data-forced="1"] .fx-bottomnav { left: 50%; right: auto; width: 430px; transform: translateX(-50%); }
+          .fx-navbtn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 66px; padding: 6px 8px; border-radius: 10px; flex-shrink: 0; }
+          .fx-navbtn span { font-size: 10.5px; font-weight: 500; white-space: nowrap; max-width: 78px; overflow: hidden; text-overflow: ellipsis; }
+          [data-view="mobile"] input, [data-view="mobile"] textarea, [data-view="mobile"] select { font-size: 16px !important; }
+          [data-view="mobile"] .grid[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+          [data-view="mobile"] .fx-actions { opacity: 0.85; }
+          [data-view="mobile"] .fx-dayhead { flex-wrap: wrap; row-gap: 4px; }
+          [data-view="mobile"] .fx-dayhead .fx-dayplan { order: 5; flex-basis: 100%; }
+          [data-view="mobile"] .fx-dayhead .fx-actions { margin-left: auto; }
+          [data-view="mobile"] .fx-itemrow { flex-wrap: wrap; row-gap: 2px; }
+          [data-view="mobile"] .fx-itemrow .fx-addr { order: 4; width: calc(100% - 30px) !important; margin-left: 30px; font-size: 14px !important; opacity: 0.8; }
+          [data-view="mobile"] .fx-itemrow .fx-pin { order: 5; }
+          [data-view="mobile"] .fx-itemrow button { padding: 6px; }
+          [data-view="mobile"] input.fx-tripname { font-size: 26px !important; }
         `}</style>
 
         <div className="flex items-center justify-end gap-2 mb-4 flex-wrap">
+          <button
+            onClick={cycleView}
+            title="Switch between automatic, phone and desktop layouts"
+            className="flex items-center gap-1.5"
+            style={{ fontSize: 12, color: PAPER, border: `1px solid ${MUTED}55`, borderRadius: 8, padding: "6px 10px" }}
+          >
+            {viewPref === "auto" ? <MonitorSmartphone size={13} /> : viewPref === "mobile" ? <Smartphone size={13} /> : <Monitor size={13} />}
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+              {viewPref === "auto" ? "Auto view" : viewPref === "mobile" ? "Phone view" : "Desktop view"}
+            </span>
+          </button>
           <button
             onClick={() => setShowSync((v) => !v)}
             className="flex items-center gap-1.5"
